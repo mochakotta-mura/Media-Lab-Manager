@@ -66,7 +66,9 @@ alt Cancel Booking
   activate Actor
   Actor ->Server: Cancel Booking
   Server -->Actor: Ask for confirmation
+  activate Database
   Server ->Database: Mark Equipment as Available
+  deactivate Database
   Server ->Media Lab: Notidy of Cancellation
   
   deactivate Actor
@@ -137,12 +139,29 @@ activate Database
 Server ->Database: Mark Equipment as Overdue
 Server->Actor: Return warning 2
 Server->Actor: Return warning 3 after some time
-Server->Database: Marks actor as banned
+alt Actor does not return
+  Server -->Actor: Inform Actor of their ban
+  Server->Database: Marks actor as banned
+  Server ->Media Lab: Notify of User Ban
+  alt Ban Repealed
+  Server<-Media Lab:Repeal Ban
+  Server ->Database: Mark Actor as un-banned
+  Server ->Actor: Notify of Repeal of Ban
+  else continue
+  end
+  else Actor Returns
+  Actor->Media Lab: Returns Equipment(s)
+  Server ->Database: Mark 3rd Warning Return
+  Media Lab->Server: Confirm Return Date,Time, and Condition
+Actor->Server:Confirm Return Date,Time, and Condition
+  Server->Database: Mark Equipment as returned
+  Server -->Actor: Notify Return Confirmation
+  end
 deactivate Media Lab
 deactivate Actor
+
 end
 end
 
 deactivate Database
 deactivate Server
-
