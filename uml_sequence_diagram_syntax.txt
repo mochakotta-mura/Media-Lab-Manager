@@ -1,0 +1,3 @@
+The following file contains code for the UML Sequence Diagram for Media Lab Equipment Lending Software. 
+This code can be pasted into https://sequencediagram.org/ :
+
