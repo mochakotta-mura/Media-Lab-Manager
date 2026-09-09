@@ -62,6 +62,17 @@ end
 
 deactivate Database
 
+alt Cancel Booking
+  activate Actor
+  Actor ->Server: Cancel Booking
+  Server -->Actor: Ask for confirmation
+  Server ->Database: Mark Equipment as Available
+  Server ->Media Lab: Notidy of Cancellation
+  
+  deactivate Actor
+  else continue
+  end
+
 alt Equipment Picked Up
   activate Media Lab
   activate Actor
@@ -134,3 +145,4 @@ end
 
 deactivate Database
 deactivate Server
+
