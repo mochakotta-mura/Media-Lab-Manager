@@ -1,3 +1,136 @@
 The following file contains code for the UML Sequence Diagram for Media Lab Equipment Lending Software. 
 This code can be pasted into https://sequencediagram.org/ :
 
+title Sequence Diagram for Media Lab Equipment Lending Software
+
+entryspacing 0.8
+activate Actor
+activate Server
+activate Database
+Actor->Server: Login (Krea ID)
+Server-->Actor: Confirm authentication
+Server->Database: Checks for User (banned/not- banned)
+alt Banned User
+Server->Actor: Display Notice
+else continue
+end
+
+
+Server->Actor:Show all equipments
+Actor->Server:User adds equipment(s) to cart
+Actor->Server:User inputs necessary dates and purpose
+
+
+Server->Database: Check equipment availability
+Database-->Server: Report availability
+
+alt Equipment Avaliable
+
+  Server->Actor: Notify Avaliablity & Confirm request
+  Server->Database: Mark equipment as requested
+  activate Media Lab
+  Server->Media Lab: Notify of request
+  Media Lab-->Server: Evaluate request
+  deactivate Media Lab
+  alt Request Accepted
+Server<-Media Lab: Send Acceptance Conditions
+  Server->Actor:Send Pick Up instructions
+  Server ->Database: Mark equipment as pickup pending
+
+alt Different Pickup Time
+Actor->Server: Request for different pickup time
+Server->Media Lab: Notify Request
+Media Lab->Server:Approves Request
+else Not Approved
+Media Lab->Server: Rejects Request + Gives other time slots
+Server->Actor: Notifies rejection and other time slots
+end
+  
+  
+  else Request Rejected
+
+  Server->Database:Mark equipment as Rejected
+  Actor<-Server:Notify of Rejection
+  Actor ->Actor: Loop back to start
+  end
+else Equipment Unavaliable
+Server->Actor: Notify Unavaliablility
+Actor->Actor:Loop back to start
+deactivate Actor
+
+end
+
+deactivate Database
+
+alt Equipment Picked Up
+  activate Media Lab
+  activate Actor
+  Actor->Media Lab: Picks up Equipment(s)
+  Actor ->Server: Confirm Pick Up Date and Time
+  Media Lab ->Server: Confirm Pick Up Date and Time
+  activate Database
+  Server->Database: Mark Equipment as Picked Up
+  deactivate Database
+  
+  deactivate Media Lab
+  
+Actor<-Server:Notify Pick Up Confirmation
+deactivate Actor
+  else User did not pick up
+  activate Media Lab
+  Media Lab ->Server: Mark equipment as not picked up
+  deactivate Media Lab
+  activate Actor
+  Server ->Actor: Prompt Actor for pick up. \n Wait 15 mins.
+  activate Database
+  Server ->Database: Mark equipment as available.
+
+Actor<--Server:Noitify of non-pick of equipment
+deactivate Actor
+  end
+deactivate Database
+Server->Actor: Return Reminder
+Actor-->Server:Confirm return timing and report damages
+alt Extension of Equipment
+Actor-> Server: Request for Extension
+Server->Media Lab: Notify for Extension Request
+Media Lab-->Server: Allows extension
+Server->Actor: Notifies of Extension
+activate Database
+Server->Database: Keeps the Equipment as picked up
+deactivate Database
+
+else Media Lab rejects extension
+Media Lab-->Server: Rejects Extension
+Server->Actor: Notifies of Rejection and reminds to return
+
+alt Returns on Time
+activate Actor
+activate Media Lab
+Actor->Media Lab: Returns Equipment(s)
+Media Lab->Server: Confirm Return Date,Time, and Condition
+Actor->Server:Confirm Return Date,Time, and Condition
+activate Database
+Server->Database: Mark Equipment as returned
+deactivate Database
+Server-->Actor: Notify return confirmation
+deactivate Actor
+deactivate Media Lab
+else Late to Return
+activate Media Lab
+activate Actor
+Media Lab ->Server: Mark Equipment as unreturned.
+Server ->Actor: Send warning for return
+Server->Media Lab:Inform of overdue
+activate Database
+Server ->Database: Mark Equipment as Overdue
+Server->Actor: Return warning 2
+Server->Actor: Return warning 3 after some time
+Server->Database: Marks actor as banned
+deactivate Media Lab
+deactivate Actor
+end
+end
+
+deactivate Database
+deactivate Server
