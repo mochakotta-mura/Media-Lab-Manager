@@ -1,0 +1,15 @@
+{
+  "name": "mlm.database",
+  "version": "1.0.0",
+  "description": "",
+  "main": "MLM.Database.Commands.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "better-sqlite3": "^11.10.0"
+  }
+}
