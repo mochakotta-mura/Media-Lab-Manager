@@ -2,3 +2,5 @@ MLM.Database/node_modules/
 MLM.Database/*.sqlite
 MLM.Database/*.sqlite-*
 *.log
+__pycache__/
+*.py[cod]
