@@ -1,0 +1,1 @@
+const booking=new URLSearchParams(location.search).get('booking');if(booking){document.querySelector('#bookingId').textContent=booking;document.querySelector('.pass-code').textContent='MLM · '+booking+' · JOYBOY'}
