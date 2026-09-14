@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS users (
   email TEXT UNIQUE, department TEXT DEFAULT '', role TEXT DEFAULT 'lendee',
   notification_preferences TEXT DEFAULT '{}', banned INTEGER DEFAULT 0,
   ban_reason TEXT DEFAULT '', created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP, pin_hash TEXT DEFAULT ''
 );
 CREATE TABLE IF NOT EXISTS equipment (
   id INTEGER PRIMARY KEY, asset_code TEXT NOT NULL UNIQUE, name TEXT NOT NULL,
@@ -81,6 +81,10 @@ CREATE INDEX IF NOT EXISTS idx_request_status ON requests(status);
 CREATE INDEX IF NOT EXISTS idx_windows_time ON time_windows(kind, starts_at, ends_at);
 `);
 
+// Existing databases are upgraded only with the one credential field needed by PIN login.
+try { db.exec("ALTER TABLE users ADD COLUMN pin_hash TEXT DEFAULT ''"); }
+catch (error) { if (!/duplicate column name/i.test(error.message)) throw error; }
+
 const now = () => new Date().toISOString();
 const arr = x => Array.isArray(x) ? x : x == null ? [] : [x];
 const json = x => JSON.stringify(x || {});
@@ -93,8 +97,8 @@ const emit = (type, aggregateType, id, payload = {}) =>
 
 function addUser(x = {}) {
   if (!x.kreaId || !x.name) throw new Error('kreaId and name are required');
-  const r = db.prepare('INSERT INTO users(krea_id,name,email,department,role,notification_preferences) VALUES (?,?,?,?,?,?)')
-    .run(x.kreaId, x.name, x.email || null, x.department || '', x.role || 'lendee', json(x.notificationPreferences));
+  const r = db.prepare('INSERT INTO users(krea_id,name,email,department,role,notification_preferences,pin_hash) VALUES (?,?,?,?,?,?,?)')
+    .run(x.kreaId, x.name, x.email || null, x.department || '', x.role || 'lendee', json(x.notificationPreferences), x.pinHash || '');
   return db.prepare('SELECT * FROM users WHERE id=?').get(r.lastInsertRowid);
 }
 function updateUser(id, x = {}) {
