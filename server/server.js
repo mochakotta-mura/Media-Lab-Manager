@@ -7,7 +7,9 @@ const path = require('node:path');
 const dbModule = require('../MLM.Database/MLM.Database.Commands');
 
 const db = dbModule.db;
-const frontendRoot = path.join(__dirname, '..', 'Media Lab Frontend');
+// The reference frontend is not served here. The maintained production frontend
+// is the separately integrated `Media Lab Front` tree.
+const frontendRoot = path.join(__dirname, '..', 'Media Lab Front');
 const port = Number(process.env.PORT || 3000);
 const sessions = new Map();
 
