@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Frontend Health | Media Lab Manager</title>
+  <link rel="stylesheet" href="../../css/global.css"><link rel="stylesheet" href="../../css/admin.css">
+  <style>
+    .health-flow{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;align-items:stretch;margin:24px 0}.health-step{position:relative;padding:18px;border:1px solid #d9e0eb;border-radius:14px;background:#fff;box-shadow:0 4px 14px #14213d0d}.health-step:not(:last-child)::after{content:'→';position:absolute;right:-18px;top:38%;color:#6b7a90;font-size:24px}.health-step h2{font-size:16px;margin:8px 0}.health-step small{color:#68758a}.health-dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:#2e9d67}.health-list{display:grid;gap:10px}.health-row{display:flex;justify-content:space-between;gap:16px;padding:14px 16px;border:1px solid #d9e0eb;border-radius:10px;background:#fff}.health-row span{color:#68758a}.health-row strong{color:#b56d18}@media(max-width:800px){.health-flow{grid-template-columns:1fr}.health-step:not(:last-child)::after{content:'↓';right:48%;top:auto;bottom:-25px}.health-row{display:block}.health-row span{display:block;margin-top:6px}}
+  </style>
+</head>
+<body data-require-role="staff">
+  <header class="app-header"><a class="brand" href="equipment.html"><i class="mark">▱</i><span><b>Media Lab Manager</b><small>ADMIN CONSOLE</small></span></a><nav class="student-nav" data-shared-nav></nav><div class="header-tools"><i class="avatar"></i><span class="profile-name"><b></b><small></small></span></div></header>
+  <div class="admin-shell"><aside class="admin-sidebar"><small>NAVIGATION</small><a href="equipment.html">▣ &nbsp; Equipment</a><a href="requests.html">▢ &nbsp; Requests</a><a href="history.html">▤ &nbsp; Reports</a><a href="settings.html">⚙ &nbsp; Settings</a><a class="active" href="frontend-health.html">✓ &nbsp; Frontend Health</a></aside>
+    <main><div class="page-heading"><div><h1>Frontend Health</h1><p>Visual map of the main user journey and the controls wired to the Python backend.</p></div></div>
+      <section class="health-flow" aria-label="Booking workflow"><article class="health-step"><span class="health-dot"></span><h2>Catalog</h2><small>Browse and add equipment</small></article><article class="health-step"><span class="health-dot"></span><h2>Booking Cart</h2><small>Choose valid dates</small></article><article class="health-step"><span class="health-dot"></span><h2>Request</h2><small>Submit to backend</small></article><article class="health-step"><span class="health-dot"></span><h2>Approval</h2><small>Staff action required</small></article><article class="health-step"><span class="health-dot"></span><h2>Return</h2><small>Return or report damage</small></article></section>
+      <section class="card" style="padding:22px"><h2>Known frontend findings</h2><div class="health-list"><div class="health-row"><strong>Fixed</strong><span>Catalog now exposes a Proceed to Booking action after equipment is selected.</span></div><div class="health-row"><strong>Fixed</strong><span>Booking validation now distinguishes empty cart, invalid order, and the 72-hour limit.</span></div><div class="health-row"><strong>Fixed</strong><span>History and notification filters are now interactive and use authenticated API data.</span></div><div class="health-row"><strong>Needs backend expansion</strong><span>Return photo upload is still visual only because the backend has no file-upload endpoint.</span></div><div class="health-row"><strong>Needs product decision</strong><span>Staff check-in on the pickup-pass page is represented as a notice; there is no separate staff check-in action yet.</span></div></div></section>
+    </main>
+  </div>
+  <script src="../../js/api.js"></script>
+</body>
+</html>

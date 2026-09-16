@@ -1,13 +1,6 @@
 (function () {
   const form = document.querySelector('#loginForm');
   const error = document.querySelector('#loginError');
-  const typeInput = document.querySelector('#accountType');
-  document.querySelectorAll('[data-account-type]').forEach(button => button.onclick = () => {
-    typeInput.value = button.dataset.accountType;
-    document.querySelectorAll('[data-account-type]').forEach(item => item.classList.toggle('selected', item === button));
-    document.querySelector('[name="email"]').placeholder = button.dataset.accountType === 'student' ? 'you@krea.ac.in' : 'you@krea.edu.in';
-    error.textContent = '';
-  });
   form.addEventListener('submit', async event => {
     event.preventDefault(); error.textContent = '';
     const pin = form.pin.value;

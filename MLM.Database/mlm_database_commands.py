@@ -21,9 +21,27 @@ DB_PATH = Path(os.environ.get("MEDIA_LAB_DB", Path(__file__).with_name("media-la
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY, krea_id TEXT NOT NULL UNIQUE, name TEXT NOT NULL,
-  email TEXT UNIQUE, department TEXT DEFAULT '', role TEXT DEFAULT 'lendee',
+  email TEXT UNIQUE, department TEXT DEFAULT '', role TEXT DEFAULT 'student',
   notification_preferences TEXT DEFAULT '{}', banned INTEGER DEFAULT 0,
+  pin_hash TEXT DEFAULT '', failed_pin_attempts INTEGER DEFAULT 0,
+  locked_until TEXT,
   ban_reason TEXT DEFAULT '', created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS sessions (
+  id INTEGER PRIMARY KEY, token_hash TEXT NOT NULL UNIQUE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  expires_at TEXT NOT NULL, created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  last_seen_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS auth_attempts (
+  id INTEGER PRIMARY KEY, ip_address TEXT NOT NULL, email TEXT NOT NULL,
+  failed_attempts INTEGER DEFAULT 0, window_started_at TEXT NOT NULL,
+  locked_until TEXT, updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(ip_address, email)
+);
+CREATE TABLE IF NOT EXISTS lab_settings (
+  setting_key TEXT PRIMARY KEY, setting_value TEXT NOT NULL,
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS equipment (
@@ -122,6 +140,17 @@ class Database:
         self.connection.execute("PRAGMA foreign_keys = ON")
         self.connection.execute("PRAGMA journal_mode = WAL")
         self.connection.executescript(SCHEMA)
+        for statement in (
+            "ALTER TABLE users ADD COLUMN pin_hash TEXT DEFAULT ''",
+            "ALTER TABLE users ADD COLUMN failed_pin_attempts INTEGER DEFAULT 0",
+            "ALTER TABLE users ADD COLUMN locked_until TEXT",
+        ):
+            try:
+                self.connection.execute(statement)
+            except sqlite3.OperationalError as error:
+                if "duplicate column name" not in str(error).lower():
+                    raise
+        self.connection.execute("UPDATE users SET role='student' WHERE role='lendee' OR role IS NULL OR role='' ")
         self.connection.commit()
 
     @contextmanager
@@ -151,10 +180,15 @@ class Database:
         cur = self.connection.execute(
             "INSERT INTO users(krea_id,name,email,department,role,notification_preferences) VALUES (?,?,?,?,?,?)",
             (data["kreaId"], data["name"], data.get("email"), data.get("department", ""),
-             data.get("role", "lendee"), _json(data.get("notificationPreferences"))),
+             data.get("role", "student"), _json(data.get("notificationPreferences"))),
         )
         self.connection.commit()
         return _row(self.connection.execute("SELECT * FROM users WHERE id=?", (cur.lastrowid,)).fetchone())
+
+    def list_users(self):
+        return _rows(self.connection.execute(
+            "SELECT id,krea_id,name,email,department,role,banned,created_at FROM users ORDER BY name COLLATE NOCASE"
+        ))
 
     def update_user(self, user_id: int, data: dict[str, Any]) -> dict[str, Any] | None:
         fields = {"kreaId": "krea_id", "name": "name", "email": "email", "department": "department",
@@ -196,6 +230,20 @@ class Database:
         )
         self.connection.commit()
         return _row(self.connection.execute("SELECT * FROM equipment WHERE id=?", (cur.lastrowid,)).fetchone())
+
+    def get_settings(self) -> dict[str, Any]:
+        return {row["setting_key"]: row["setting_value"] for row in self.connection.execute("SELECT setting_key,setting_value FROM lab_settings ORDER BY setting_key")}
+
+    def update_settings(self, data: dict[str, Any]) -> dict[str, Any]:
+        allowed = {"standardLoanHours", "returnReminderHours", "notifyStaff", "notifyStudents"}
+        for key, value in data.items():
+            if key in allowed:
+                self.connection.execute(
+                    "INSERT INTO lab_settings(setting_key,setting_value,updated_at) VALUES (?,?,?) ON CONFLICT(setting_key) DO UPDATE SET setting_value=excluded.setting_value,updated_at=excluded.updated_at",
+                    (key, json.dumps(value), _now()),
+                )
+        self.connection.commit()
+        return self.get_settings()
 
     def update_equipment(self, equipment_id: int, data: dict[str, Any], actor_id: int | None = None):
         fields = {"assetCode": "asset_code", "name": "name", "description": "description",

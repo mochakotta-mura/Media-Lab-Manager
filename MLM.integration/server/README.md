@@ -49,7 +49,7 @@ The login endpoint accepts:
 - Faculty and Media Lab accounts with `@krea.edu.in` addresses.
 - A four-digit PIN.
 
-The server returns a bearer session token and also sets an HttpOnly session cookie. Sessions expire after eight hours. PIN hashes are currently held in server memory because the existing database schema does not provide a credential column; they are lost when the server restarts.
+The server sets an HttpOnly, SameSite=Strict session cookie. In production the cookie is also Secure; local HTTP development can explicitly set `COOKIE_SECURE=false`. Session records and scrypt PIN hashes are persisted in SQLite, and sessions expire after eight hours.
 
 This is the current development authentication flow. Krea SSO is not implemented.
 
@@ -58,19 +58,19 @@ This is the current development authentication flow. Krea SSO is not implemented
 The server implements the operations exposed by `Media Lab Front/js/api.js`:
 
 - Authentication: login, logout, and current-user lookup.
-- Users: staff-only user creation.
+- Users: administrator-only user creation (new users default to student).
 - Equipment: catalog search and statistics.
 - Requests: create, list, approve, reject, cancel, schedule windows, extensions, pickup, and return.
 - Damage: create damage reports for request items.
 - Administration: dashboard, audit history, and outbox events.
 
-All protected API calls require the session cookie or an `Authorization: Bearer <token>` header.
+All protected API calls require the session cookie. Mutating requests also require the `X-MLM-CSRF: 1` custom header; this is a defense-in-depth CSRF check alongside SameSite=Strict cookies.
 
 ## Permissions
 
 - Students can browse equipment, create requests, view their own requests, cancel owned requests, and submit owned returns.
 - Faculty and Media Lab users can review requests, approve or reject them, manage pickup and return workflows, report damage, and access administrative data.
-- Requester and actor IDs supplied by the browser are ignored where the authenticated session provides the correct identity.
+- Requester and actor IDs supplied by the browser are ignored; the authenticated session determines the acting user.
 
 ## Data and validation
 
