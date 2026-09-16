@@ -1,8 +1,8 @@
 # Media Lab Manager Python Server
 
-`server.py` is a framework-free Python HTTP server for the Media Lab Manager application. It serves the maintained frontend in `Media Lab Front` and exposes the JSON API expected by `Media Lab Front/js/api.js`.
+`server.py` is the framework-free Python HTTP server for the Media Lab Manager application. It serves the maintained frontend in `Media Lab Front` and exposes the JSON API expected by `Media Lab Front/js/api.js`.
 
-The integration is contained in `MLM.integration`; existing frontend and database files are used without modification.
+The integration is contained in `MLM.integration`; existing frontend and database files are used without modification. The former `Media Lab Front/dev-backend` Node development server has been removed.
 
 ## Requirements
 
@@ -25,6 +25,8 @@ http://127.0.0.1:3000
 ```
 
 Open the root URL in a browser. The server serves `Media Lab Front/index.html` and its protected application pages.
+
+The frontend and API use the same origin, so no `mlmApiBase` local-storage setting or separate development backend is needed. The frontend API adapter uses `/api` automatically.
 
 ## Configuration
 
