@@ -58,8 +58,9 @@ This is the current development authentication flow. Krea SSO is not implemented
 The server implements the operations exposed by `Media Lab Front/js/api.js`:
 
 - Authentication: login, logout, and current-user lookup.
-- Users: administrator-only user creation (new users default to student).
-- Equipment: catalog search and statistics.
+- Users: staff user listing and administrator-only user creation (new users default to student).
+- Equipment: catalog search, statistics, creation, and updates.
+- Settings: administrator-only settings read and update.
 - Requests: create, list, approve, reject, cancel, schedule windows, extensions, pickup, and return.
 - Damage: create damage reports for request items.
 - Administration: dashboard, audit history, and outbox events.
@@ -70,6 +71,7 @@ All protected API calls require the session cookie. Mutating requests also requi
 
 - Students can browse equipment, create requests, view their own requests, cancel owned requests, and submit owned returns.
 - Faculty and Media Lab users can review requests, approve or reject them, manage pickup and return workflows, report damage, and access administrative data.
+- `bing@krea.edu.in` is explicitly recognized as an administrator.
 - Requester and actor IDs supplied by the browser are ignored; the authenticated session determines the acting user.
 
 ## Data and validation
@@ -100,6 +102,17 @@ The server supports the live-data paths used by the maintained frontend:
 7. History, dashboard, audit, and outbox data are loaded through the API.
 
 Frontend-provided requester and actor IDs are not trusted; the authenticated session determines the acting user.
+
+## Server function blocks
+
+The documented function groups in `server.py` are:
+
+- Security helpers: PIN hashing, token hashing, cookies, login lockouts, and role checks.
+- Data helpers: date parsing, request lookup/listing, and equipment availability validation.
+- HTTP helpers: JSON responses, cookies, sessions, request bodies, and error handling.
+- HTTP methods: CORS preflight and GET, POST, PATCH, and PUT dispatch.
+- API routing: authentication, equipment, settings, users, requests, returns, damage, audit, dashboard, and outbox operations.
+- Lifecycle functions: protected static-file serving and server startup/shutdown cleanup.
 
 ## Diagram coverage
 

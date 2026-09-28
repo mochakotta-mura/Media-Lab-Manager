@@ -32,25 +32,32 @@ PORT = int(os.environ.get("PORT", "3000"))
 SESSION_SECONDS = 8 * 60 * 60
 db = Database()
 SESSION_COOKIE = "mlm_session"
-COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "true").lower() not in {"0", "false", "no"}
+COOKIE_SECURE = os.environ.get(
+    "COOKIE_SECURE", "true" if HOST not in {"127.0.0.1", "localhost"} else "false"
+).lower() not in {"0", "false", "no"}
 LOGIN_WINDOW_SECONDS = 15 * 60
 LOGIN_MAX_ATTEMPTS = 5
 LOGIN_LOCK_SECONDS = 15 * 60
+STAFF_ROLES = {"faculty", "media_lab", "admin", "staff"}
+ADMIN_EMAILS = {"bing@krea.edu.in"}
 
 
 class ApiError(Exception):
     def __init__(self, message: str, status: int = 400):
+        """Represent an API error with an HTTP status code."""
         super().__init__(message)
         self.status = status
 
 
 def hash_pin(pin: str) -> str:
+    """Create a salted scrypt hash for a PIN."""
     salt = secrets.token_bytes(16)
     value = hashlib.scrypt(pin.encode(), salt=salt, n=16384, r=8, p=1, dklen=32)
     return f"scrypt${salt.hex()}${value.hex()}"
 
 
 def verify_pin(pin: str, encoded: str) -> bool:
+    """Verify a PIN against an encoded scrypt hash."""
     try:
         scheme, salt, expected = encoded.split("$")
         if scheme != "scrypt":
@@ -62,24 +69,43 @@ def verify_pin(pin: str, encoded: str) -> bool:
 
 
 def public_user(user: dict) -> dict:
+    """Return the safe user fields exposed to the frontend."""
+    email = str(user.get("email", "")).lower()
+    role = "admin" if email in ADMIN_EMAILS else user.get("role", "student")
     return {"id": user["id"], "kreaId": user["krea_id"], "name": user["name"],
-            "email": user.get("email"), "role": user.get("role", "student")}
+            "email": user.get("email"), "role": role}
+
+
+def is_staff(user: dict) -> bool:
+    """Check whether a user may access staff operations."""
+    email = str(user.get("email", "")).lower()
+    return email in ADMIN_EMAILS or (user.get("role") in STAFF_ROLES and email.endswith("@krea.edu.in"))
+
+
+def is_admin(user: dict) -> bool:
+    """Check whether a user may access administrator operations."""
+    email = str(user.get("email", "")).lower()
+    return email in ADMIN_EMAILS or (user.get("role") == "admin" and email.endswith("@krea.edu.in"))
 
 
 def token_hash(token: str) -> str:
+    """Hash a session token before database storage or lookup."""
     return hashlib.sha256(token.encode()).hexdigest()
 
 
 def cookie_header(token: str, max_age: int) -> str:
+    """Build the session cookie header."""
     secure = "; Secure" if COOKIE_SECURE else ""
     return f"{SESSION_COOKIE}={token}; HttpOnly; SameSite=Strict; Path=/; Max-Age={max_age}{secure}"
 
 
 def now_epoch() -> float:
+    """Return the current Unix timestamp."""
     return time.time()
 
 
 def account_lock(user: dict | None) -> float:
+    """Read a user's temporary lock expiry timestamp."""
     try:
         return float((user or {}).get("locked_until") or 0)
     except (TypeError, ValueError):
@@ -87,12 +113,14 @@ def account_lock(user: dict | None) -> float:
 
 
 def attempt_row(ip: str, email: str):
+    """Load login-attempt data for an IP and email pair."""
     return db.connection.execute(
         "SELECT * FROM auth_attempts WHERE ip_address=? AND email=?", (ip, email)
     ).fetchone()
 
 
 def check_login_allowed(ip: str, email: str, user: dict | None):
+    """Reject accounts or IPs currently blocked by login limits."""
     now = now_epoch()
     if account_lock(user) > now:
         raise ApiError("This account is temporarily locked. Try again later.", 429)
@@ -108,6 +136,7 @@ def check_login_allowed(ip: str, email: str, user: dict | None):
 
 
 def record_failed_login(ip: str, email: str, user: dict | None):
+    """Record a failed login and apply lockout thresholds."""
     now = now_epoch()
     row = attempt_row(ip, email)
     failures = 1
@@ -130,6 +159,7 @@ def record_failed_login(ip: str, email: str, user: dict | None):
 
 
 def clear_failed_logins(ip: str, email: str, user: dict):
+    """Clear failed-login counters after successful authentication."""
     db.connection.execute("DELETE FROM auth_attempts WHERE ip_address=? AND email=?", (ip, email))
     db.connection.execute(
         "UPDATE users SET failed_pin_attempts=0,locked_until=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=?",
@@ -139,6 +169,7 @@ def clear_failed_logins(ip: str, email: str, user: dict):
 
 
 def iso_date(value: str, field: str) -> datetime:
+    """Parse and validate a timezone-aware ISO-8601 date."""
     if not value:
         raise ApiError(f"{field} is required")
     try:
@@ -151,10 +182,12 @@ def iso_date(value: str, field: str) -> datetime:
 
 
 def request_view(request_id: int):
+    """Return one request with its items and time windows."""
     return db._request_view(request_id)
 
 
 def request_owner(request_id: int):
+    """Load a request or raise a not-found API error."""
     request = request_view(request_id)
     if not request:
         raise ApiError("Request not found", 404)
@@ -162,6 +195,7 @@ def request_owner(request_id: int):
 
 
 def request_list(filters: dict):
+    """List requests using optional requester and status filters."""
     clauses, values = [], []
     if filters.get("requesterId"):
         clauses.append("requester_id=?")
@@ -176,7 +210,7 @@ def request_list(filters: dict):
 
 
 def ensure_available(equipment_ids, starts_at: str, ends_at: str):
-    """Reject any interval overlap, including partial overlaps."""
+    """Reject unavailable equipment and any interval overlap."""
     ids = [int(value.get("id", value) if isinstance(value, dict) else value) for value in equipment_ids]
     if not ids:
         raise ApiError("At least one equipment item is required")
@@ -203,9 +237,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
     server_version = "MediaLabManager/1.0"
 
     def log_message(self, fmt, *args):
+        """Write one HTTP request to the server log."""
         print(f"{self.address_string()} - {fmt % args}")
 
     def send_json(self, status: int, value, headers: dict | None = None):
+        """Send a JSON response with optional headers."""
         body = json.dumps(value, separators=(",", ":")).encode()
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -221,10 +257,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def fail(self, error):
+        """Convert an exception into a JSON API error response."""
         status = error.status if isinstance(error, ApiError) else 500
         self.send_json(status, {"error": str(error)})
 
     def cookies(self):
+        """Parse cookies from the incoming request."""
         values = {}
         for part in self.headers.get("Cookie", "").split(";"):
             if "=" in part:
@@ -233,6 +271,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         return values
 
     def current_user(self):
+        """Resolve and refresh the current database-backed session."""
         auth = self.headers.get("Authorization", "")
         # Bearer auth is intentionally not accepted. Sessions are cookie-only.
         if auth:
@@ -255,24 +294,28 @@ class Handler(http.server.BaseHTTPRequestHandler):
         return public_user(dict(row))
 
     def require_user(self):
+        """Require an authenticated user for the current request."""
         user = self.current_user()
         if not user:
             raise ApiError("You must sign in first", 401)
         return user
 
     def require_staff(self):
+        """Require an authenticated staff user."""
         user = self.require_user()
-        if user.get("role") not in {"faculty", "media_lab", "admin", "staff"} or not str(user.get("email", "")).endswith("@krea.edu.in"):
+        if not is_staff(user):
             raise ApiError("Staff access is required", 403)
         return user
 
     def require_admin(self):
+        """Require an authenticated administrator."""
         user = self.require_user()
-        if user.get("role") != "admin" or not str(user.get("email", "")).endswith("@krea.edu.in"):
+        if not is_admin(user):
             raise ApiError("Administrator access is required", 403)
         return user
 
     def read_body(self):
+        """Read and decode a bounded JSON request body."""
         length = int(self.headers.get("Content-Length", "0"))
         if length > 1024 * 1024:
             raise ApiError("Request body is too large", 413)
@@ -288,6 +331,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         return value
 
     def do_OPTIONS(self):
+        """Handle CORS preflight requests."""
         self.send_response(204)
         self.send_header("Access-Control-Allow-Origin", self.headers.get("Origin", "*"))
         self.send_header("Access-Control-Allow-Credentials", "true")
@@ -296,6 +340,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
+        """Route GET requests to the API or static-file handler."""
         try:
             parsed = urlparse(self.path)
             if parsed.path.startswith("/api/"):
@@ -306,6 +351,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.fail(error)
 
     def do_POST(self):
+        """Route POST requests to the API."""
         try:
             parsed = urlparse(self.path)
             if not parsed.path.startswith("/api/"):
@@ -315,6 +361,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.fail(error)
 
     def do_PATCH(self):
+        """Route PATCH requests to the API."""
         try:
             parsed = urlparse(self.path)
             if not parsed.path.startswith("/api/"):
@@ -324,9 +371,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.fail(error)
 
     def do_PUT(self):
+        """Treat PUT requests as PATCH requests."""
         self.do_PATCH()
 
     def route(self, method, path, data):
+        """Dispatch an API request to authentication or workflow logic."""
         if method == "POST" and path == "/api/auth/login":
             return self.login(data)
         if method == "POST" and path == "/api/auth/logout":
@@ -380,8 +429,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.send_json(201, db.create_request(body))
         if method == "GET" and path == "/api/requests":
             filters = {key: values[0] for key, values in data.items()}
-            is_staff = user.get("role") in {"faculty", "media_lab", "admin", "staff"}
-            if not is_staff:
+            staff_access = is_staff(user)
+            if not staff_access:
                 filters["requesterId"] = str(user["id"])
             elif filters.get("requesterId"):
                 filters["requesterId"] = str(int(filters["requesterId"]))
@@ -392,12 +441,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             request_id = int(parts[2])
             request = request_owner(request_id)
             action = parts[3]
-            is_staff = user.get("role") in {"faculty", "media_lab", "admin", "staff"}
+            staff_access = is_staff(user)
             if action == "cancel":
-                if request["requester_id"] != user["id"] and not is_staff:
+                if request["requester_id"] != user["id"] and not staff_access:
                     raise ApiError("You do not own this request", 403)
                 return self.send_json(200, db.cancel_request(request_id, user["id"]))
-            if action in {"approve", "reject", "windows", "pickup"} and not is_staff:
+            if action in {"approve", "reject", "windows", "pickup"} and not staff_access:
                 raise ApiError("Staff access is required", 403)
             if action == "approve":
                 return self.send_json(200, db.approve_request(request_id, user["id"], data.get("notes", "")))
@@ -411,7 +460,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 body = {**data, "requestId": request_id, "actorId": user["id"]}
                 return self.send_json(201, db.schedule_window(body))
             if action == "extensions":
-                if request["requester_id"] != user["id"] and not is_staff:
+                if request["requester_id"] != user["id"] and not staff_access:
                     raise ApiError("You do not own this request", 403)
                 starts_at = iso_date(data.get("startsAt"), "startsAt")
                 ends_at = iso_date(data.get("endsAt"), "endsAt")
@@ -423,7 +472,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 body = {**data, "requestId": request_id, "actorId": user["id"]}
                 return self.send_json(200, db.record_pickup(body))
             if action == "return":
-                if request["requester_id"] != user["id"] and not is_staff:
+                if request["requester_id"] != user["id"] and not staff_access:
                     raise ApiError("You do not own this request", 403)
                 body = {**data, "requestId": request_id, "actorId": user["id"]}
                 return self.send_json(200, db.record_return(body))
@@ -445,6 +494,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         raise ApiError("API route not found", 404)
 
     def login(self, data):
+        """Validate credentials and create a database-backed session."""
         email = str(data.get("email", "")).lower().strip()
         pin = str(data.get("pin", ""))
         if not re.match(r"^[^@\s]+@krea\.(ac\.in|edu\.in)$", email):
@@ -478,12 +528,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
         return self.send_json(200, {"user": safe}, {"Set-Cookie": cookie_header(token, SESSION_SECONDS)})
 
     def static_file(self, path):
+        """Serve frontend files while protecting application pages."""
         path = "/index.html" if path in {"", "/"} else path
         user = self.current_user()
         if path.startswith("/pages/admin/"):
-            if not user or user.get("role") not in {"faculty", "media_lab", "staff", "admin"} or not str(user.get("email", "")).endswith("@krea.edu.in"):
+            if not user or not is_staff(user):
                 self.send_response(302); self.send_header("Location", "/pages/catalog.html"); self.end_headers(); return
-            if path.endswith("/settings.html") and user.get("role") != "admin":
+            if path.endswith("/settings.html") and not is_admin(user):
                 self.send_response(302); self.send_header("Location", "/pages/catalog.html"); self.end_headers(); return
         if path.startswith("/pages/") and not user:
             self.send_response(302); self.send_header("Location", "/"); self.end_headers(); return
@@ -499,6 +550,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 
 def main():
+    """Start the HTTP server and close resources on shutdown."""
     server = http.server.HTTPServer((HOST, PORT), Handler)
     print(f"Media Lab Manager listening on http://{HOST}:{PORT}")
     try:
