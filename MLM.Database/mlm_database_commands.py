@@ -44,8 +44,15 @@ CREATE TABLE IF NOT EXISTS lab_settings (
   setting_key TEXT PRIMARY KEY, setting_value TEXT NOT NULL,
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
+CREATE TABLE IF NOT EXISTS listings (
+  id INTEGER PRIMARY KEY, listing_code TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL, description TEXT DEFAULT '', category TEXT DEFAULT '',
+  location TEXT DEFAULT '', quantity INTEGER NOT NULL DEFAULT 0 CHECK(quantity >= 0),
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
 CREATE TABLE IF NOT EXISTS equipment (
-  id INTEGER PRIMARY KEY, asset_code TEXT NOT NULL UNIQUE, name TEXT NOT NULL,
+  id INTEGER PRIMARY KEY, listing_id INTEGER REFERENCES listings(id),
+  asset_code TEXT NOT NULL UNIQUE, name TEXT NOT NULL,
   description TEXT DEFAULT '', serial_number TEXT UNIQUE,
   status TEXT DEFAULT 'available' CHECK(status IN
     ('available','requested','pickup_pending','picked_up','overdue','damaged','maintenance','retired','lost')),
@@ -150,6 +157,10 @@ class Database:
             except sqlite3.OperationalError as error:
                 if "duplicate column name" not in str(error).lower():
                     raise
+        equipment_columns = {row[1] for row in self.connection.execute("PRAGMA table_info(equipment)")}
+        if "listing_id" not in equipment_columns:
+            self.connection.execute("ALTER TABLE equipment ADD COLUMN listing_id INTEGER REFERENCES listings(id)")
+        self.connection.execute("CREATE INDEX IF NOT EXISTS idx_equipment_listing ON equipment(listing_id)")
         self.connection.execute("UPDATE users SET role='student' WHERE role='lendee' OR role IS NULL OR role='' ")
         self.connection.commit()
 
@@ -219,13 +230,53 @@ class Database:
             self._emit("user.unbanned", "user", user_id)
         return self.update_user(user_id, {})
 
+    def add_listing(self, data: dict[str, Any]) -> dict[str, Any]:
+        if not data.get("listingCode") or not data.get("name"):
+            raise ValueError("listingCode and name are required")
+        cur = self.connection.execute(
+            "INSERT INTO listings(listing_code,name,description,category,location,quantity) VALUES (?,?,?,?,?,?)",
+            (data["listingCode"], data["name"], data.get("description", ""), data.get("category", ""),
+             data.get("location", ""), int(data.get("quantity", 0))),
+        )
+        self.connection.commit()
+        return _row(self.connection.execute("SELECT * FROM listings WHERE id=?", (cur.lastrowid,)).fetchone())
+
+    def get_listings(self, filters=None):
+        filters = filters or {}
+        clauses, params = [], []
+        if filters.get("q"):
+            clauses.append("(l.name LIKE ? OR l.listing_code LIKE ? OR l.description LIKE ? OR l.category LIKE ?)")
+            params.extend([f"%{filters['q']}%"] * 4)
+        where = " WHERE " + " AND ".join(clauses) if clauses else ""
+        rows = self.connection.execute(f"""SELECT l.*,
+            COUNT(e.id) AS equipment_quantity,
+            COALESCE(SUM(CASE WHEN e.status='available' THEN 1 ELSE 0 END), 0) AS available_quantity,
+            COALESCE(SUM(CASE WHEN e.status IN ('picked_up','overdue') THEN 1 ELSE 0 END), 0) AS checked_out_quantity,
+            GROUP_CONCAT(e.id) AS equipment_ids,
+            GROUP_CONCAT(CASE WHEN e.status='available' THEN e.id END) AS available_equipment_ids
+            FROM listings l LEFT JOIN equipment e ON e.listing_id=l.id{where}
+            GROUP BY l.id ORDER BY l.name COLLATE NOCASE""", params).fetchall()
+        result = []
+        for row in rows:
+            if filters.get("status") == "available" and not row["available_quantity"]:
+                continue
+            item = dict(row)
+            for key in ("equipment_ids", "available_equipment_ids"):
+                item[key] = [int(value) for value in item[key].split(",") if value] if item[key] else []
+            item["listing_id"] = item["id"]
+            item["catalog_id"] = item["id"]
+            item["id"] = item["available_equipment_ids"][0] if item["available_equipment_ids"] else item["listing_id"]
+            item["total_quantity"] = item["quantity"] or item["equipment_quantity"]
+            item["status"] = "available" if item["available_quantity"] else "unavailable"
+            result.append(item)
+        return result
     def add_equipment(self, data: dict[str, Any]) -> dict[str, Any]:
         if not data.get("name"):
             raise ValueError("name is required")
         asset_code = data.get("assetCode") or f"ASSET-{int(datetime.now().timestamp() * 1000)}"
         cur = self.connection.execute(
-            "INSERT INTO equipment(asset_code,name,description,serial_number,status,location) VALUES (?,?,?,?,?,?)",
-            (asset_code, data["name"], data.get("description", ""), data.get("serialNumber"),
+            "INSERT INTO equipment(listing_id,asset_code,name,description,serial_number,status,location) VALUES (?,?,?,?,?,?,?)",
+            (data.get("listingId"), asset_code, data["name"], data.get("description", ""), data.get("serialNumber"),
              data.get("status", "available"), data.get("location", "")),
         )
         self.connection.commit()
@@ -246,7 +297,7 @@ class Database:
         return self.get_settings()
 
     def update_equipment(self, equipment_id: int, data: dict[str, Any], actor_id: int | None = None):
-        fields = {"assetCode": "asset_code", "name": "name", "description": "description",
+        fields = {"assetCode": "asset_code", "listingId": "listing_id", "name": "name", "description": "description",
                   "serialNumber": "serial_number", "status": "status", "location": "location"}
         updates = [(column, data[key]) for key, column in fields.items() if key in data]
         if updates:
