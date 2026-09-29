@@ -20,5 +20,10 @@
     : [['catalog.html', 'Catalog'], ['bookings.html', 'Bookings & Cart'], ['history.html', 'My History'], ['notifications.html', 'Notifications'], ['profile.html', 'Profile']];
   nav.innerHTML = links.map(([href, label]) => `<a href="${href}">${label}</a>`).join('') + (!adminPage && staff ? '<a class="admin-link" href="admin/equipment.html">Admin Console</a>' : '');
   if (adminPage) document.querySelectorAll('a[href="#"]').forEach(link => { if (/settings/i.test(link.textContent)) link.href = 'settings.html'; });
+  const sidebar = document.querySelector('.admin-sidebar');
+  if (adminPage && sidebar) {
+    const current = location.pathname.split('/').pop();
+    sidebar.innerHTML = `<small>NAVIGATION</small><a href="dashboard.html" class="${current === 'dashboard.html' ? 'active' : ''}">▦ &nbsp; Dashboard</a><a href="equipment.html" class="${current === 'equipment.html' ? 'active' : ''}">▣ &nbsp; Equipment</a><a href="requests.html" class="${current === 'requests.html' ? 'active' : ''}">▢ &nbsp; Requests</a><a href="history.html" class="${current === 'history.html' ? 'active' : ''}">▤ &nbsp; Reports</a><a href="settings.html" class="${current === 'settings.html' ? 'active' : ''}">⚙ &nbsp; Settings</a><a href="frontend-health.html" class="${current === 'frontend-health.html' ? 'active' : ''}">✓ &nbsp; Frontend Health</a>`;
+  }
   document.querySelectorAll('.avatar, .large-avatar').forEach(element => { element.setAttribute('role', 'link'); element.setAttribute('tabindex', '0'); element.title = 'Open profile'; element.onclick = () => { location.href = adminPage ? '../../pages/profile.html' : 'profile.html'; }; element.onkeydown = event => { if (event.key === 'Enter' || event.key === ' ') element.click(); }; });
 })();

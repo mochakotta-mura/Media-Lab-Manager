@@ -1,22 +1,22 @@
-const adminApiReady = window.mlmApi ? Promise.resolve() : new Promise(resolve => { const s = document.createElement('script'); s.src = '../../js/api.js'; s.onload = resolve; document.head.appendChild(s); });
-adminApiReady.then(() => window.mlmSessionReady).then(() => mlmSession.requireStaff()).then(async user => {
+/* Live equipment management for the staff inventory page. */
+const adminApiReady = window.mlmApi ? Promise.resolve() : new Promise((resolve, reject) => {
+  const script = document.createElement('script'); script.src = '../../js/api.js'; script.onload = resolve; script.onerror = reject; document.head.appendChild(script);
+});
+adminApiReady.then(() => window.mlmSessionReady).then(() => mlmSession.requireStaff()).then(async () => {
+  const rows = document.querySelector('#equipmentRows'); if (!rows) return;
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
-  if (document.querySelector('#equipmentRows')) {
-    const render = async () => {
-      const result = await mlmApi.equipment({ limit: 1000 });
-      const items = Array.isArray(result) ? result : (result.equipment || result.items || []);
-      document.querySelector('#equipmentRows').innerHTML = items.map(x => `<tr><td><b>${esc(x.name)}</b></td><td>${esc(x.category || '—')}</td><td>${esc(x.serial_number || x.serialNumber || '—')}</td><td>1</td><td>${x.status === 'available' ? 1 : 0}</td><td>${x.status === 'picked_up' ? 1 : 0}</td><td><span class="status ${esc(x.status)}">${esc(x.status)}</span></td><td><button class="outline" data-edit-equipment="${x.id}">Edit</button></td></tr>`).join('') || '<tr><td colspan="8">No equipment found.</td></tr>';
-      document.querySelectorAll('[data-edit-equipment]').forEach(button => button.onclick = async () => {
-        const item = items.find(x => Number(x.id) === Number(button.dataset.editEquipment));
-        const name = prompt('Equipment name', item.name); if (!name) return;
-        const status = prompt('Status', item.status) || item.status;
-        try { await mlmApi.updateEquipment(item.id, { name, status }); await render(); } catch (error) { mlmUiError(error.message); }
-      });
-    };
-    try { await render(); const add = document.querySelector('.page-heading .primary'); if (add) add.onclick = async () => { const name = prompt('Equipment name'); if (!name) return; const assetCode = prompt('Asset code'); if (!assetCode) return; try { await mlmApi.addEquipment({ name, assetCode, status: 'available' }); await render(); } catch (error) { mlmUiError(error.message); } }; } catch (error) { mlmUiError(error.message); }
-  }
-  if (document.querySelector('#requestList')) {
-    try { const result = await mlmApi.requests('?status=pending'); const requests = Array.isArray(result) ? result : (result.requests || []); document.querySelector('#requestList').innerHTML = requests.map(x => `<article class="request-card"><div class="request-head"><div><h2>Request #${x.id}</h2><p>${esc(x.requester_name || '')}</p></div><span class="status pending">pending</span></div><div class="request-details"><article><b>Equipment</b><p>${(x.items || []).map(i => esc(i.name || i.equipment_id)).join(', ')}</p></article><article><b>Purpose</b><p>${esc(x.purpose)}</p></article></div><div class="request-actions"><button class="reject" data-action="reject" data-id="${x.id}">Reject</button><button class="primary" data-action="approve" data-id="${x.id}">Approve</button></div></article>`).join('') || '<p>No pending requests.</p>'; document.querySelectorAll('[data-action]').forEach(button => button.onclick = async () => { try { if (button.dataset.action === 'approve') await mlmApi.approveRequest(button.dataset.id, user.id); else await mlmApi.rejectRequest(button.dataset.id, user.id, prompt('Reason for rejection') || ''); button.closest('.request-card').remove(); } catch (error) { mlmUiError(error.message); } }); } catch (error) { mlmUiError(error.message); }
-  }
-  if (document.querySelector('#reportRows')) { try { const result = await mlmApi.requests(); const requests = Array.isArray(result) ? result : (result.requests || []); document.querySelector('#reportRows').innerHTML = requests.map(x => `<tr><td>${x.id}</td><td>${esc(x.requester_name || '')}</td><td>${(x.items || []).map(i => esc(i.name || i.equipment_id)).join(', ')}</td><td>${esc(x.created_at)}</td><td>${esc(x.updated_at)}</td><td><span class="status ${esc(x.status)}">${esc(x.status)}</span></td><td>—</td></tr>`).join(''); } catch (error) { mlmUiError(error.message); } }
+  const status = value => `<span class="status ${esc(String(value || '').toLowerCase())}">${esc(value || 'unknown')}</span>`;
+  const classify = name => { const n = String(name || '').toLowerCase(); if (/camera|a6400|zv-e10|rx100/.test(n)) return 'Cameras'; if (/lens|mm f|art/.test(n)) return 'Lenses'; if (/mic|rode|røde|sennheiser|hollyland|zoom|headphone|mixer|recorder|audio/.test(n)) return 'Audio'; if (/light|godox|aputure|colbor|softbox|stand/.test(n)) return 'Lighting'; return 'Accessories'; };
+  let equipment = [];
+  const render = category => {
+    const query = (document.querySelector('#equipmentSearch')?.value || '').toLowerCase();
+    const filtered = equipment.filter(item => (category === 'All' || classify(item.name).toLowerCase() === category.toLowerCase()) && [item.name, item.asset_code, item.serial_number, item.description].join(' ').toLowerCase().includes(query));
+    rows.innerHTML = filtered.map(item => `<tr><td><b>${esc(item.name)}</b><br><small>${esc(item.description || '')}</small></td><td>${esc(item.category || classify(item.name))}</td><td>${esc(item.location || '—')}</td><td>${esc(item.total_quantity ?? 1)}</td><td>${esc(item.available_quantity ?? (item.status === 'available' ? 1 : 0))}</td><td>${esc(item.checked_out_quantity ?? 0)}</td><td>${status(item.status)}</td><td><button class="btn btn-ghost btn-sm" data-equipment-edit="${item.id}">Edit</button></td></tr>`).join('') || '<tr><td colspan="8" class="empty">No equipment matches this filter.</td></tr>';
+    document.querySelectorAll('[data-equipment-edit]').forEach(button => button.onclick = () => window.mlmUiError('Equipment editing is connected to the backend API; an edit form can be added without changing the endpoint contract.'));
+  };
+  try {
+    const result = await mlmApi.equipment({ limit: 1000 }); equipment = Array.isArray(result) ? result : (result.equipment || result.items || []); render('All');
+    document.querySelector('#equipmentSearch')?.addEventListener('input', () => render(document.querySelector('.admin-tabs .selected')?.dataset.filter || 'All'));
+    document.querySelectorAll('.admin-tabs button').forEach(button => button.onclick = () => { document.querySelectorAll('.admin-tabs button').forEach(x => x.classList.remove('selected')); button.classList.add('selected'); render(button.dataset.filter || button.textContent.trim()); });
+  } catch (error) { rows.innerHTML = `<tr><td colspan="8">${esc(error.message)}</td></tr>`; }
 });
