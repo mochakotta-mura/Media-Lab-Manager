@@ -1,8 +1,41 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Lab Settings</title><link rel="stylesheet" href="../../css/global.css"><link rel="stylesheet" href="../../css/admin.css"></head>
-<body>
-<header class="app-header"><a class="brand" href="equipment.html"><i class="mark">▱</i><span><b>Media Lab Manager</b><small>ADMIN CONSOLE</small></span></a><nav class="student-nav" data-shared-nav></nav><div class="header-tools"><i class="avatar">??</i></div></header>
-<div class="admin-shell"><aside class="admin-sidebar"><small>NAVIGATION</small><a href="equipment.html">▦ &nbsp; Dashboard</a><a href="equipment.html">▣ &nbsp; Equipment</a><a href="requests.html">▢ &nbsp; Requests</a><a href="history.html">▤ &nbsp; Reports</a><a class="active" href="settings.html">⚙ &nbsp; Settings</a></aside><main><div class="page-heading"><div><h1>Lab Settings</h1><p>Configure lending rules and staff notifications.</p></div></div><section class="request-card"><h2>Loan Rules</h2><div class="request-details"><article><b>Standard loan duration</b><p><select><option value="72">72 hours</option><option value="48">48 hours</option></select></p></article><article><b>Return reminder</b><p><select><option value="24">24 hours before due date</option><option value="48">48 hours before due date</option></select></p></article></div><h2>Notifications</h2><label><input type="checkbox" checked> Notify staff when a new booking is submitted</label><br><br><label><input type="checkbox" checked> Notify students when a request is approved or rejected</label><br><br><button class="primary" id="saveSettings">Save Settings</button></section></main></div>
-<script src="../../js/api.js"></script><script src="../../js/session.js"></script><script src="../../js/settings.js"></script>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Settings | Media Lab Manager</title>
+  <link rel="stylesheet" href="../../css/global.css">
+  <link rel="stylesheet" href="../../css/admin.css">
+</head>
+<body data-require-role="admin" class="admin-page">
+  <header class="app-header">
+    <a class="brand" href="dashboard.html" aria-label="Media Lab Manager admin portal"><i class="mark" aria-hidden="true">▱</i><span><b>Media Lab</b><small>ADMIN · EQUIPMENT PORTAL</small></span></a>
+    <nav class="student-nav" data-shared-nav aria-label="Primary navigation"></nav>
+    <div class="header-tools"><i class="avatar" aria-hidden="true"></i><span class="profile-name"><b></b><small></small></span></div>
+  </header>
+  <div class="admin-shell">
+    <aside class="admin-sidebar" aria-label="Admin navigation"><small>NAVIGATION MENU</small></aside>
+    <main class="admin-settings-main">
+      <div class="page-heading"><div><h1>Lab Portal Settings</h1><p>Configure maximum loan intervals, automatic thresholds, and operating parameters.</p></div></div>
+      <div class="settings-panels">
+        <section class="settings-card"><h2>Lending Policy</h2>
+          <label>Maximum Loan Duration (Days)<select id="standardLoanHours" aria-label="Maximum loan duration"><option value="24">1 day</option><option value="48">2 days</option><option value="72">3 days</option><option value="96">4 days</option></select></label>
+          <label>Maximum Items per Booking<select id="maxItems" aria-label="Maximum items per booking" disabled><option value="3">Managed by server policy</option></select></label>
+          <label>Auto-Approval Threshold<select id="autoApproval" aria-label="Auto approval threshold" disabled><option value="manual">Managed by server policy</option></select></label>
+        </section>
+        <section class="settings-card"><h2>Notifications</h2>
+          <label>Reminder Frequency<select id="returnReminderHours" aria-label="Reminder frequency"><option value="24">Every day</option><option value="48">Every 2 days</option><option value="72">Every 3 days</option></select></label>
+          <label>Overdue Notification Timing<select id="overdueTiming" aria-label="Overdue notification timing" disabled><option value="immediate">Managed by server policy</option></select></label>
+          <label class="settings-toggle"><span><b>Email Notification System</b><small>Send automatic emails for updates</small></span><input id="notifyStudents" type="checkbox"><span class="toggle-ui" aria-hidden="true"></span></label>
+          <label class="settings-toggle"><span><b>Staff Request Alerts</b><small>Notify staff when a booking is submitted</small></span><input id="notifyStaff" type="checkbox"><span class="toggle-ui" aria-hidden="true"></span></label>
+        </section>
+        <section class="settings-card settings-card-wide"><h2>General Settings</h2>
+          <div class="settings-readonly-grid"><div><span>Lab Operating Hours</span><b data-setting="labHours">Managed by server policy</b></div><div><span>Pickup / Return Windows</span><b data-setting="pickupWindow">Managed by server policy</b></div><div><span>Academic Year Dates</span><b data-setting="academicYear">Managed by server policy</b></div></div>
+          <p class="settings-note">Review all changes before submitting. Saved values are persisted through the existing settings API.</p><button class="primary" id="saveSettings">Save Changes</button>
+        </section>
+      </div>
+    </main>
+  </div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="../../js/api.js"></script><script src="../../js/session.js"></script><script src="../../js/settings.js"></script>
 </body></html>

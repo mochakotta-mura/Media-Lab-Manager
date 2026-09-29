@@ -16,9 +16,13 @@
   if (profileDetails) profileDetails.textContent = user.email || '';
   const adminPage = location.pathname.includes('/pages/admin/');
   const links = adminPage
-    ? [['../../pages/catalog.html', 'Student Catalog'], ['../../pages/profile.html', 'Profile'], ['equipment.html', 'Admin Console'], ['frontend-health.html', 'Frontend Health']]
+    ? [['../../pages/catalog.html', 'Catalogue'], ['requests.html', 'Requests'], ['equipment.html', 'Equipments'], ['history.html', 'Report'], ['settings.html', 'Settings']]
     : [['catalog.html', 'Catalog'], ['bookings.html', 'Bookings & Cart'], ['history.html', 'My History'], ['notifications.html', 'Notifications'], ['profile.html', 'Profile']];
   nav.innerHTML = links.map(([href, label]) => `<a href="${href}">${label}</a>`).join('') + (!adminPage && staff ? '<a class="admin-link" href="admin/equipment.html">Admin Console</a>' : '');
+  if (adminPage) {
+    const current = location.pathname.split('/').pop();
+    nav.querySelectorAll('a').forEach(link => { if (link.getAttribute('href')?.endsWith(current)) link.classList.add('active'); });
+  }
   if (adminPage) document.querySelectorAll('a[href="#"]').forEach(link => { if (/settings/i.test(link.textContent)) link.href = 'settings.html'; });
   const sidebar = document.querySelector('.admin-sidebar');
   if (adminPage && sidebar) {
