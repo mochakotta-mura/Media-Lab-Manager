@@ -7,6 +7,7 @@
   const staff = window.mlmSession.isStaff(user);
   document.querySelectorAll('.header-tools .admin-link').forEach(element => { if (!staff) element.remove(); });
   const initials = String(user.name || user.email || '').split(/\s+/).map(part => part[0]).join('').slice(0, 2).toUpperCase();
+  document.querySelectorAll('.mark').forEach(mark => { if (!mark.querySelector('img')) { mark.textContent = ''; const image = document.createElement('img'); image.src = new URL('../assets/camera.svg', document.currentScript?.src || location.href).href; image.alt = ''; mark.appendChild(image); } });
   document.querySelectorAll('.avatar, .large-avatar').forEach(element => { element.textContent = initials; });
   document.querySelectorAll('.profile-name b').forEach(element => { element.textContent = user.name || user.email; });
   document.querySelectorAll('.profile-name small').forEach(element => { element.textContent = user.email || ''; });
