@@ -28,6 +28,15 @@ Open the root URL in a browser. The server serves `Media Lab Front/index.html` a
 
 The frontend and API use the same origin, so no `mlmApiBase` local-storage setting or separate development backend is needed. The frontend API adapter uses `/api` automatically.
 
+For a local demo database, seed the repository database before starting the server:
+
+```bash
+python3 MLM.Database/seed_test_equipment.py
+python3 MLM.integration/server/server.py
+```
+
+The seed script provides demo students, staff, an administrator, equipment, and example requests. Demo PINs are printed by the script.
+
 ## Configuration
 
 Use environment variables to change the server settings:
@@ -77,6 +86,8 @@ All protected API calls require the session cookie. Mutating requests also requi
 ## Data and validation
 
 The server delegates persistence and workflow state changes to `mlm_database_commands.Database`. These operations create the corresponding audit-log and outbox records.
+
+At startup, the server also creates the `return_submissions` table used for student return submissions and staff verification when it is missing.
 
 The HTTP layer validates:
 
@@ -157,6 +168,6 @@ python3 -m py_compile MLM.integration/server/server.py
 
 ## Integration test coverage
 
-The server has been tested externally against a temporary SQLite database. The test client called every method exposed by `Media Lab Front/js/api.js`, including authentication, equipment, users, requests, approvals, cancellation, windows, extensions, pickup, return, damage, dashboard, audit, and outbox operations.
+The server has been tested externally against a temporary SQLite database and the seeded local database. The test client called every method exposed by `Media Lab Front/js/api.js`, including authentication, equipment, users, requests, approvals, cancellation, windows, extensions, pickup, return submission, return verification, damage, dashboard, audit, and outbox operations.
 
 The workflow checks also covered booking conflicts, request ownership, staff-only authorization, logout invalidation, and protected-page redirects. These are API-level integration tests; no browser automation or formal test runner is currently included.
