@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1900" height="2180" viewBox="0 0 1900 2180" role="img" aria-labelledby="title description">
+  <title id="title">Media Lab Manager database schema</title>
+  <desc id="description">Entity relationship diagram showing all database tables, columns, data types, keys, and foreign-key relationships.</desc>
+  <style>
+    text { font-family: Arial, sans-serif; fill: #172033; }
+    .title { font-size: 30px; font-weight: bold; }
+    .subtitle { font-size: 16px; fill: #52627a; }
+    .table { fill: #ffffff; stroke: #365985; stroke-width: 2; }
+    .head { fill: #315b92; }
+    .head-text { fill: #ffffff; font-size: 18px; font-weight: bold; }
+    .col { font-size: 13px; }
+    .key { fill: #b15b00; font-weight: bold; }
+    .relation { stroke: #8a98ad; stroke-width: 1.6; fill: none; }
+    .legend { font-size: 14px; }
+  </style>
+  <defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#8a98ad"/></marker></defs>
+  <rect width="1900" height="2180" fill="#f7f9fc"/>
+  <text x="950" y="42" text-anchor="middle" class="title">Media Lab Manager Database Schema</text>
+  <text x="950" y="70" text-anchor="middle" class="subtitle">SQLite tables, columns, data types, keys, and foreign-key relationships</text>
+  <text x="40" y="100" class="legend"><tspan class="key">PK</tspan> primary key  <tspan class="key">FK</tspan> foreign key  <tspan class="key">UK</tspan> unique  |  JSON fields are stored as TEXT</text>
+
+  <!-- Relationships are drawn behind the table cards. -->
+  <g class="relation" marker-end="url(#arrow)">
+    <path d="M405 230 L495 230"/><path d="M405 270 L495 270"/>
+    <path d="M405 570 L495 570"/><path d="M405 610 L495 610"/>
+    <path d="M835 570 L925 570"/><path d="M1265 570 L1355 570"/>
+    <path d="M405 1080 L495 1080"/><path d="M835 1080 L925 1080"/><path d="M1265 1080 L1355 1080"/>
+    <path d="M405 1580 L495 1580"/><path d="M835 1580 L925 1580"/>
+    <path d="M405 1125 C600 900 720 800 925 650"/><path d="M835 1130 C1030 900 1160 800 1355 650"/>
+    <path d="M1265 1120 C1450 900 1500 800 1660 650"/>
+    <path d="M405 1630 C600 1370 740 1260 925 1150"/>
+    <path d="M835 1630 C1030 1370 1160 1260 1355 1150"/>
+    <path d="M1265 1630 C1450 1370 1540 1260 1660 1150"/>
+  </g>
+
+  <!-- Row 1 -->
+  <g transform="translate(40 130)"><rect width="365" height="310" class="table"/><rect width="365" height="32" class="head"/><text x="12" y="22" class="head-text">users</text><text x="12" y="52" class="col key">PK INTEGER id</text><text x="12" y="71" class="col key">UK TEXT krea_id</text><text x="12" y="90" class="col">TEXT name</text><text x="12" y="109" class="col key">UK TEXT email</text><text x="12" y="128" class="col">TEXT department</text><text x="12" y="147" class="col">TEXT role</text><text x="12" y="166" class="col">TEXT notification_preferences</text><text x="12" y="185" class="col">INTEGER banned</text><text x="12" y="204" class="col">TEXT pin_hash</text><text x="12" y="223" class="col">INTEGER failed_pin_attempts</text><text x="12" y="242" class="col">TEXT locked_until</text><text x="12" y="261" class="col">TEXT ban_reason</text><text x="12" y="280" class="col">TEXT created_at, updated_at</text></g>
+  <g transform="translate(495 130)"><rect width="340" height="180" class="table"/><rect width="340" height="32" class="head"/><text x="12" y="22" class="head-text">sessions</text><text x="12" y="52" class="col key">PK INTEGER id</text><text x="12" y="71" class="col key">UK TEXT token_hash</text><text x="12" y="90" class="col key">FK INTEGER user_id</text><text x="12" y="109" class="col">TEXT expires_at</text><text x="12" y="128" class="col">TEXT created_at</text><text x="12" y="147" class="col">TEXT last_seen_at</text></g>
+  <g transform="translate(925 130)"><rect width="340" height="180" class="table"/><rect width="340" height="32" class="head"/><text x="12" y="22" class="head-text">auth_attempts</text><text x="12" y="52" class="col key">PK INTEGER id</text><text x="12" y="71" class="col">TEXT ip_address</text><text x="12" y="90" class="col">TEXT email</text><text x="12" y="109" class="col">INTEGER failed_attempts</text><text x="12" y="128" class="col">TEXT window_started_at</text><text x="12" y="147" class="col">TEXT locked_until, updated_at</text><text x="12" y="166" class="col key">UK ip_address + email</text></g>
+  <g transform="translate(1355 130)"><rect width="365" height="130" class="table"/><rect width="365" height="32" class="head"/><text x="12" y="22" class="head-text">lab_settings</text><text x="12" y="52" class="col key">PK TEXT setting_key</text><text x="12" y="71" class="col">TEXT setting_value</text><text x="12" y="90" class="col">TEXT updated_at</text></g>
+
+  <!-- Row 2 -->
+  <g transform="translate(40 500)"><rect width="365" height="200" class="table"/><rect width="365" height="32" class="head"/><text x="12" y="22" class="head-text">listings</text><text x="12" y="52" class="col key">PK INTEGER id</text><text x="12" y="71" class="col key">UK TEXT listing_code</text><text x="12" y="90" class="col">TEXT name, category</text><text x="12" y="109" class="col">TEXT description, location</text><text x="12" y="128" class="col">INTEGER quantity</text><text x="12" y="147" class="col">TEXT images (JSON)</text><text x="12" y="166" class="col">TEXT created_at, updated_at</text></g>
+  <g transform="translate(495 500)"><rect width="340" height="220" class="table"/><rect width="340" height="32" class="head"/><text x="12" y="22" class="head-text">equipment</text><text x="12" y="52" class="col key">PK INTEGER id</text><text x="12" y="71" class="col key">FK INTEGER listing_id</text><text x="12" y="90" class="col key">UK TEXT asset_code</text><text x="12" y="109" class="col">TEXT name, description</text><text x="12" y="128" class="col key">UK TEXT serial_number</text><text x="12" y="147" class="col">TEXT status</text><text x="12" y="166" class="col">TEXT location</text><text x="12" y="185" class="col">TEXT created_at, updated_at</text></g>
+  <g transform="translate(925 500)"><rect width="340" height="110" class="table"/><rect width="340" height="32" class="head"/><text x="12" y="22" class="head-text">tags</text><text x="12" y="52" class="col key">PK INTEGER id</text><text x="12" y="71" class="col key">UK TEXT name</text></g>
+  <g transform="translate(1355 500)"><rect width="365" height="130" class="table"/><rect width="365" height="32" class="head"/><text x="12" y="22" class="head-text">equipment_tags</text><text x="12" y="52" class="col key">PK/FK INTEGER equipment_id</text><text x="12" y="71" class="col key">PK/FK INTEGER tag_id</text></g>
+
+  <!-- Row 3 -->
+  <g transform="translate(40 930)"><rect width="365" height="220" class="table"/><rect width="365" height="32" class="head"/><text x="12" y="22" class="head-text">requests</text><text x="12" y="52" class="col key">PK INTEGER id</text><text x="12" y="71" class="col key">FK INTEGER requester_id</text><text x="12" y="90" class="col">TEXT purpose</text><text x="12" y="109" class="col">INTEGER academic_priority</text><text x="12" y="128" class="col">TEXT status</text><text x="12" y="147" class="col">TEXT rejection_reason</text><text x="12" y="166" class="col">TEXT approval_notes</text><text x="12" y="185" class="col">TEXT created_at, updated_at</text></g>
+  <g transform="translate(495 930)"><rect width="340" height="165" class="table"/><rect width="340" height="32" class="head"/><text x="12" y="22" class="head-text">request_items</text><text x="12" y="52" class="col key">PK INTEGER id</text><text x="12" y="71" class="col key">FK INTEGER request_id</text><text x="12" y="90" class="col key">FK INTEGER equipment_id</text><text x="12" y="109" class="col">TEXT status</text><text x="12" y="128" class="col key">UK request_id + equipment_id</text></g>
+  <g transform="translate(925 930)"><rect width="340" height="180" class="table"/><rect width="340" height="32" class="head"/><text x="12" y="22" class="head-text">time_windows</text><text x="12" y="52" class="col key">PK INTEGER id</text><text x="12" y="71" class="col key">FK INTEGER request_id</text><text x="12" y="90" class="col">TEXT kind</text><text x="12" y="109" class="col">TEXT starts_at, ends_at</text><text x="12" y="128" class="col">TEXT status, notes</text><text x="12" y="147" class="col">TEXT created_at</text></g>
+  <g transform="translate(1355 930)"><rect width="365" height="220" class="table"/><rect width="365" height="32" class="head"/><text x="12" y="22" class="head-text">returns</text><text x="12" y="52" class="col key">PK INTEGER id</text><text x="12" y="71" class="col key">UK/FK INTEGER request_item_id</text><text x="12" y="90" class="col">TEXT picked_up_at, returned_at</text><text x="12" y="109" class="col">INTEGER returned_flag</text><text x="12" y="128" class="col">TEXT condition, notes</text><text x="12" y="147" class="col">INTEGER damage_flag</text><text x="12" y="166" class="col">INTEGER no_show</text><text x="12" y="185" class="col">INTEGER overdue_warning_count</text></g>
+
+  <!-- Row 4 -->
+  <g transform="translate(40 1430)"><rect width="365" height="180" class="table"/><rect width="365" height="32" class="head"/><text x="12" y="22" class="head-text">damage_reports</text><text x="12" y="52" class="col key">PK INTEGER id</text><text x="12" y="71" class="col key">FK INTEGER request_item_id</text><text x="12" y="90" class="col key">FK INTEGER reported_by</text><text x="12" y="109" class="col">TEXT description, severity</text><text x="12" y="128" class="col">INTEGER resolved</text><text x="12" y="147" class="col">TEXT created_at</text></g>
+  <g transform="translate(495 1430)"><rect width="340" height="180" class="table"/><rect width="340" height="32" class="head"/><text x="12" y="22" class="head-text">ban_history</text><text x="12" y="52" class="col key">PK INTEGER id</text><text x="12" y="71" class="col key">FK INTEGER user_id</text><text x="12" y="90" class="col key">FK INTEGER actor_id</text><text x="12" y="109" class="col">TEXT action, reason</text><text x="12" y="128" class="col">TEXT created_at</text></g>
+  <g transform="translate(925 1430)"><rect width="340" height="200" class="table"/><rect width="340" height="32" class="head"/><text x="12" y="22" class="head-text">audit_log</text><text x="12" y="52" class="col key">PK INTEGER id</text><text x="12" y="71" class="col key">FK INTEGER actor_id</text><text x="12" y="90" class="col">TEXT entity_type</text><text x="12" y="109" class="col">INTEGER entity_id</text><text x="12" y="128" class="col">TEXT action</text><text x="12" y="147" class="col">TEXT details (JSON)</text><text x="12" y="166" class="col">TEXT created_at</text></g>
+  <g transform="translate(1355 1430)"><rect width="365" height="200" class="table"/><rect width="365" height="32" class="head"/><text x="12" y="22" class="head-text">outbox_events</text><text x="12" y="52" class="col key">PK INTEGER id</text><text x="12" y="71" class="col">TEXT event_type</text><text x="12" y="90" class="col">TEXT aggregate_type</text><text x="12" y="109" class="col">INTEGER aggregate_id</text><text x="12" y="128" class="col">TEXT payload (JSON)</text><text x="12" y="147" class="col">TEXT published_at</text><text x="12" y="166" class="col">TEXT created_at</text></g>
+
+  <rect x="40" y="1710" width="1680" height="125" rx="8" fill="#fff8d8" stroke="#c7a936"/>
+  <text x="60" y="1740" class="legend" font-weight="bold">Design notes</text>
+  <text x="60" y="1765" class="legend">listings is the catalog view; equipment stores each physical unit separately for reservations, returns, and damage.</text>
+  <text x="60" y="1790" class="legend">JSON TEXT fields: listings.images, users.notification_preferences, audit_log.details, and outbox_events.payload.</text>
+  <text x="60" y="1815" class="legend">audit_log.entity_id and outbox_events.aggregate_id are polymorphic IDs, so SQLite does not enforce a single foreign-key target.</text>
+</svg>

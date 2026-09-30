@@ -1,0 +1,162 @@
+erDiagram
+    users {
+        INTEGER id PK
+        TEXT krea_id UK
+        TEXT name
+        TEXT email UK
+        TEXT department
+        TEXT role
+        TEXT notification_preferences
+        INTEGER banned
+        TEXT pin_hash
+        INTEGER failed_pin_attempts
+        TEXT locked_until
+        TEXT ban_reason
+        TEXT created_at
+        TEXT updated_at
+    }
+    sessions {
+        INTEGER id PK
+        TEXT token_hash UK
+        INTEGER user_id FK
+        TEXT expires_at
+        TEXT created_at
+        TEXT last_seen_at
+    }
+    auth_attempts {
+        INTEGER id PK
+        TEXT ip_address
+        TEXT email
+        INTEGER failed_attempts
+        TEXT window_started_at
+        TEXT locked_until
+        TEXT updated_at
+        TEXT ip_address_email UK
+    }
+    lab_settings {
+        TEXT setting_key PK
+        TEXT setting_value
+        TEXT updated_at
+    }
+    listings {
+        INTEGER id PK
+        TEXT listing_code UK
+        TEXT name
+        TEXT description
+        TEXT category
+        TEXT location
+        INTEGER quantity
+        TEXT images_JSON
+        TEXT created_at
+        TEXT updated_at
+    }
+    equipment {
+        INTEGER id PK
+        INTEGER listing_id FK
+        TEXT asset_code UK
+        TEXT name
+        TEXT description
+        TEXT serial_number UK
+        TEXT status
+        TEXT location
+        TEXT created_at
+        TEXT updated_at
+    }
+    tags {
+        INTEGER id PK
+        TEXT name UK
+    }
+    equipment_tags {
+        INTEGER equipment_id PK_FK
+        INTEGER tag_id PK_FK
+    }
+    requests {
+        INTEGER id PK
+        INTEGER requester_id FK
+        TEXT purpose
+        INTEGER academic_priority
+        TEXT status
+        TEXT rejection_reason
+        TEXT approval_notes
+        TEXT created_at
+        TEXT updated_at
+    }
+    request_items {
+        INTEGER id PK
+        INTEGER request_id FK
+        INTEGER equipment_id FK
+        TEXT status
+        TEXT request_id_equipment_id UK
+    }
+    time_windows {
+        INTEGER id PK
+        INTEGER request_id FK
+        TEXT kind
+        TEXT starts_at
+        TEXT ends_at
+        TEXT status
+        TEXT notes
+        TEXT created_at
+    }
+    returns {
+        INTEGER id PK
+        INTEGER request_item_id UK_FK
+        TEXT picked_up_at
+        TEXT returned_at
+        INTEGER returned_flag
+        TEXT condition
+        INTEGER damage_flag
+        TEXT notes
+        INTEGER no_show
+        INTEGER overdue_warning_count
+    }
+    damage_reports {
+        INTEGER id PK
+        INTEGER request_item_id FK
+        INTEGER reported_by FK
+        TEXT description
+        TEXT severity
+        INTEGER resolved
+        TEXT created_at
+    }
+    ban_history {
+        INTEGER id PK
+        INTEGER user_id FK
+        TEXT action
+        TEXT reason
+        INTEGER actor_id FK
+        TEXT created_at
+    }
+    audit_log {
+        INTEGER id PK
+        INTEGER actor_id FK
+        TEXT entity_type
+        INTEGER entity_id
+        TEXT action
+        TEXT details_JSON
+        TEXT created_at
+    }
+    outbox_events {
+        INTEGER id PK
+        TEXT event_type
+        TEXT aggregate_type
+        INTEGER aggregate_id
+        TEXT payload_JSON
+        TEXT published_at
+        TEXT created_at
+    }
+
+    users ||--o{ sessions : owns
+    users ||--o{ requests : submits
+    users ||--o{ ban_history : has
+    users ||--o{ ban_history : acts
+    users ||--o{ damage_reports : reports
+    users ||--o{ audit_log : performs
+    listings ||--o{ equipment : groups
+    equipment ||--o{ equipment_tags : has
+    tags ||--o{ equipment_tags : labels
+    requests ||--o{ request_items : contains
+    equipment ||--o{ request_items : reserved_as
+    requests ||--o{ time_windows : schedules
+    request_items ||--o| returns : has
+    request_items ||--o{ damage_reports : records
