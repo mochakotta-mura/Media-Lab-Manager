@@ -1,6 +1,6 @@
 (async function () {
   if (!window.mlmApi) await new Promise((resolve, reject) => { const script = document.createElement('script'); script.src = '../../js/api.js'; script.onload = resolve; script.onerror = reject; document.head.appendChild(script); });
-  await window.mlmSessionReady; await mlmSession.requireStaff();
+  await window.mlmSessionReady; await mlmSession.requireAdmin();
   const target = document.querySelector('#reportRows'); if (!target) return;
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
   const format = value => value ? new Date(value).toLocaleDateString() : '—';

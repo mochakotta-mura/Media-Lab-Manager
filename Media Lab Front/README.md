@@ -22,7 +22,7 @@ Do not open the HTML files through the removed `dev-backend` server or configure
 
 - `index.html` — account login page.
 - `pages/` — catalog, bookings, history, notifications, return, pickup-pass, and admin pages.
-- `js/api.js` — shared API adapter. It defaults to `/api` and sends the session bearer token when available.
+- `js/api.js` — shared API adapter. It defaults to `/api` and sends the HttpOnly session cookie automatically; mutating calls also send the CSRF header.
 - `js/` — authentication, catalog, booking, history, return, notification, and admin behavior.
 - `css/` — shared and page-specific stylesheets.
 - `assets/` — frontend image assets.
@@ -42,8 +42,10 @@ The server determines the authenticated requester or actor from the session; bro
 ## Authentication
 
 - Students use `@krea.ac.in` addresses.
-- Faculty and Media Lab users use `@krea.edu.in` addresses.
+- Faculty and Media Lab users use `@krea.edu.in` addresses. The entire Admin Console is restricted to `demo.admin@krea.edu.in`, `bing@krea.edu.in`, and `@krea.medialab.in` accounts.
 - Login requires a four-digit PIN.
+
+For the local seed, use `maya.chen@krea.edu.in` / `8642` for staff access and `demo.admin@krea.edu.in` / `9999` for administrator access.
 
 For API details, configuration, permissions, validation, limitations, and test coverage, see [`MLM.integration/server/README.md`](../MLM.integration/server/README.md).
 

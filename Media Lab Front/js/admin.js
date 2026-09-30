@@ -1,6 +1,6 @@
 /* Live listing-level inventory management with API-backed editing. */
 const adminApiReady = window.mlmApi ? Promise.resolve() : new Promise((resolve, reject) => { const script = document.createElement('script'); script.src = '../../js/api.js'; script.onload = resolve; script.onerror = reject; document.head.appendChild(script); });
-adminApiReady.then(() => window.mlmSessionReady).then(() => mlmSession.requireStaff()).then(async () => {
+adminApiReady.then(() => window.mlmSessionReady).then(() => mlmSession.requireAdmin()).then(async () => {
   const rows = document.querySelector('#equipmentRows'); if (!rows) return;
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
   const classify = name => { const n = String(name || '').toLowerCase(); if (/camera|a6400|zv-e10|rx100/.test(n)) return 'Cameras'; if (/lens|mm f|art/.test(n)) return 'Lenses'; if (/mic|rode|røde|sennheiser|hollyland|zoom|headphone|mixer|recorder|audio/.test(n)) return 'Audio'; if (/light|godox|aputure|colbor|softbox|stand/.test(n)) return 'Lighting'; return 'Accessories'; };

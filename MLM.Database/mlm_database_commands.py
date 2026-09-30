@@ -16,6 +16,7 @@ from typing import Any, Iterable
 
 
 DB_PATH = Path(os.environ.get("MEDIA_LAB_DB", Path(__file__).with_name("media-lab.sqlite")))
+EQUIPMENT_STATUSES = {"available", "requested", "pickup_pending", "picked_up", "overdue", "damaged", "maintenance", "retired", "lost"}
 
 
 SCHEMA = """
@@ -260,6 +261,8 @@ class Database:
             COUNT(e.id) AS equipment_quantity,
             COALESCE(SUM(CASE WHEN e.status='available' THEN 1 ELSE 0 END), 0) AS available_quantity,
             COALESCE(SUM(CASE WHEN e.status IN ('picked_up','overdue') THEN 1 ELSE 0 END), 0) AS checked_out_quantity,
+            COALESCE(SUM(CASE WHEN e.status='lost' THEN 1 ELSE 0 END), 0) AS lost_quantity,
+            COALESCE(SUM(CASE WHEN e.status='damaged' THEN 1 ELSE 0 END), 0) AS damaged_quantity,
             GROUP_CONCAT(e.id) AS equipment_ids,
             GROUP_CONCAT(CASE WHEN e.status='available' THEN e.id END) AS available_equipment_ids
             FROM listings l LEFT JOIN equipment e ON e.listing_id=l.id{where}
@@ -312,13 +315,20 @@ class Database:
     def update_equipment(self, equipment_id: int, data: dict[str, Any], actor_id: int | None = None):
         fields = {"assetCode": "asset_code", "listingId": "listing_id", "name": "name", "description": "description",
                   "serialNumber": "serial_number", "status": "status", "location": "location"}
+        current = self.connection.execute("SELECT * FROM equipment WHERE id=?", (equipment_id,)).fetchone()
+        if current is None:
+            raise ValueError("equipment not found")
+        if "status" in data and data["status"] not in EQUIPMENT_STATUSES:
+            raise ValueError("invalid equipment status")
         updates = [(column, data[key]) for key, column in fields.items() if key in data]
-        if updates:
-            assignments = ",".join(f"{column}=?" for column, _ in updates)
-            self.connection.execute(f"UPDATE equipment SET {assignments},updated_at=? WHERE id=?",
-                                    [value for _, value in updates] + [_now(), equipment_id])
-        self._audit(actor_id, "equipment", equipment_id, "updated", data)
-        self.connection.commit()
+        with self._transaction():
+            if updates:
+                assignments = ",".join(f"{column}=?" for column, _ in updates)
+                self.connection.execute(f"UPDATE equipment SET {assignments},updated_at=? WHERE id=?",
+                                        [value for _, value in updates] + [_now(), equipment_id])
+            self._audit(actor_id, "equipment", equipment_id, "updated", data)
+            self._emit("equipment.updated", "equipment", equipment_id,
+                        {"before": dict(current), "changes": data})
         return _row(self.connection.execute("SELECT * FROM equipment WHERE id=?", (equipment_id,)).fetchone())
 
     def check_availability(self, equipment_ids: int | list[int], starts_at: str, ends_at: str) -> list[int]:

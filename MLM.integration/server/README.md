@@ -2,7 +2,7 @@
 
 `server.py` is the framework-free Python HTTP server for the Media Lab Manager application. It serves the maintained frontend in `Media Lab Front` and exposes the JSON API expected by `Media Lab Front/js/api.js`.
 
-The integration is contained in `MLM.integration`; existing frontend and database files are used without modification. The former `Media Lab Front/dev-backend` Node development server has been removed.
+The integration is contained in `MLM.integration` and serves the maintained frontend from `Media Lab Front`. The former `Media Lab Front/dev-backend` Node development server has been removed.
 
 ## Requirements
 
@@ -55,13 +55,13 @@ HOST=127.0.0.1 PORT=3000 MEDIA_LAB_DB=/path/to/media-lab.sqlite \
 The login endpoint accepts:
 
 - Students with `@krea.ac.in` addresses.
-- Faculty with `@krea.edu.in` addresses.
-- Presentation administrators with `@krea.medialab.in` addresses.
+- Faculty and Media Lab staff with `@krea.edu.in` addresses.
+- Only `demo.admin@krea.edu.in`, `bing@krea.edu.in`, and addresses ending in `@krea.medialab.in` are administrators.
 - A four-digit PIN.
 
 The server sets an HttpOnly, SameSite=Strict session cookie. In production the cookie is also Secure; local HTTP development can explicitly set `COOKIE_SECURE=false`. Session records and scrypt PIN hashes are persisted in SQLite, and sessions expire after eight hours.
 
-This is the current development authentication flow. Roles are assigned from the email domain for the presentation: `@krea.ac.in` becomes `student`, `@krea.edu.in` becomes `faculty`, and `@krea.medialab.in` becomes `admin`. Krea SSO is not implemented.
+This is the current development authentication flow. `@krea.ac.in` accounts default to `student`; ordinary `@krea.edu.in` accounts default to `faculty`; and `@krea.medialab.in` accounts default to `admin`. The only administrator identities are `demo.admin@krea.edu.in`, `bing@krea.edu.in`, and any address ending in `@krea.medialab.in`. Stored staff roles (`faculty`, `media_lab`, and `staff`) are preserved, while an `admin` role is only exposed for those administrator identities. Krea SSO is not implemented.
 
 ## API coverage
 
@@ -80,12 +80,12 @@ All protected API calls require the session cookie. Mutating requests also requi
 ## Permissions
 
 - Students can browse equipment, create requests, view their own requests, cancel owned requests, and submit owned returns.
-- Faculty and Media Lab users can review requests, approve or reject them, manage pickup and return workflows, report damage, and access administrative data.
+- Faculty and Media Lab users can review requests, approve or reject them, manage pickup and return workflows, report damage, and access staff API data. The entire admin console, including equipment, requests, reports, settings, and user creation, is administrator-only.
 - Requester and actor IDs supplied by the browser are ignored; the authenticated session determines the acting user.
 
 ## Data and validation
 
-The server delegates persistence and workflow state changes to `mlm_database_commands.Database`. These operations create the corresponding audit-log and outbox records.
+The server delegates persistence and workflow state changes to `mlm_database_commands.Database`. Equipment edits are committed to SQLite, create audit/outbox records, and are read back by the catalog aggregation, so a status such as `lost` survives refresh and removes that unit from available booking inventory.
 
 At startup, the server also creates the `return_submissions` table used for student return submissions and staff verification when it is missing.
 

@@ -38,14 +38,15 @@ COOKIE_SECURE = os.environ.get(
 LOGIN_WINDOW_SECONDS = 15 * 60
 LOGIN_MAX_ATTEMPTS = 5
 LOGIN_LOCK_SECONDS = 15 * 60
-STAFF_ROLES = {"admin"}
+STAFF_ROLES = {"faculty", "media_lab", "staff", "admin"}
+ADMIN_EMAILS = {"bing@krea.edu.in", "demo.admin@krea.edu.in"}
 
 ROLE_BY_EMAIL_DOMAIN = {
     "krea.ac.in": "student",
     "krea.edu.in": "faculty",
     "krea.medialab.in": "admin",
 }
-STAFF_EMAIL_DOMAINS = {"krea.medialab.in"}
+STAFF_EMAIL_DOMAINS = {"krea.edu.in", "krea.medialab.in"}
 
 
 def ensure_return_submission_schema():
@@ -110,7 +111,13 @@ def verify_pin(pin: str, encoded: str) -> bool:
 def public_user(user: dict) -> dict:
     """Return the safe user fields exposed to the frontend."""
     email = str(user.get("email", "")).lower()
-    role = role_for_email(email) or user.get("role", "student")
+    stored_role = str(user.get("role") or "").lower()
+    if is_admin_email(email):
+        role = "admin"
+    elif stored_role == "admin":
+        role = role_for_email(email) or "student"
+    else:
+        role = stored_role or role_for_email(email) or "student"
     return {"id": user["id"], "kreaId": user["krea_id"], "name": user["name"],
             "email": user.get("email"), "role": role}
 
@@ -123,11 +130,20 @@ def is_staff(user: dict) -> bool:
 def is_admin(user: dict) -> bool:
     """Check whether a user may access administrator operations."""
     email = str(user.get("email", "")).lower()
-    return user.get("role") == "admin" and email.endswith("@krea.medialab.in")
+    return is_admin_email(email)
+
+
+def is_admin_email(email: str | None) -> bool:
+    """Check the allowlist and domain reserved for administrator access."""
+    normalized = str(email or "").lower()
+    return normalized in ADMIN_EMAILS or normalized.endswith("@krea.medialab.in")
 
 
 def role_for_email(email: str) -> str | None:
-    return ROLE_BY_EMAIL_DOMAIN.get(email.rsplit("@", 1)[-1].lower())
+    normalized = str(email or "").lower()
+    if is_admin_email(normalized):
+        return "admin"
+    return ROLE_BY_EMAIL_DOMAIN.get(normalized.rsplit("@", 1)[-1])
 
 
 def is_staff_email(email: str | None) -> bool:
@@ -674,7 +690,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not user:
             user = db.add_user({"kreaId": email, "name": email.split("@", 1)[0], "email": email, "role": assigned_role})
             user["pin_hash"] = ""
-        elif user.get("role") != assigned_role:
+        elif user.get("role") not in STAFF_ROLES and user.get("role") != assigned_role:
             db.connection.execute("UPDATE users SET role=?,updated_at=CURRENT_TIMESTAMP WHERE id=?", (assigned_role, user["id"]))
             db.connection.commit()
             user["role"] = assigned_role
@@ -704,9 +720,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         path = "/index.html" if path in {"", "/"} else path
         user = self.current_user()
         if path.startswith("/pages/admin/"):
-            if not user or not is_staff(user):
-                self.send_response(302); self.send_header("Location", "/pages/catalog.html"); self.end_headers(); return
-            if path.endswith("/settings.html") and not is_admin(user):
+            if not user or not is_admin(user):
                 self.send_response(302); self.send_header("Location", "/pages/catalog.html"); self.end_headers(); return
         if path.startswith("/pages/") and not user:
             self.send_response(302); self.send_header("Location", "/"); self.end_headers(); return

@@ -1,6 +1,6 @@
 /* Shared session and role gate. Pages load this before page-specific code. */
 (function () {
-  const STAFF_ROLES = new Set(['admin']);
+  const STAFF_ROLES = new Set(['faculty', 'media_lab', 'staff', 'admin']);
   let userPromise;
   let currentUser = null;
   const isLoginPage = /\/index\.html$|\/$/.test(location.pathname);
@@ -30,7 +30,7 @@
   if (!isLoginPage) {
     document.documentElement.classList.add('session-pending');
     document.documentElement.style.visibility = 'hidden';
-    const required = document.body.dataset.requireRole || (location.pathname.includes('/admin/settings') ? 'admin' : location.pathname.includes('/admin/') ? 'staff' : 'auth');
+    const required = location.pathname.includes('/admin/') ? 'admin' : (document.body.dataset.requireRole || 'auth');
     const gate = required === 'admin' ? requireAdmin() : required === 'staff' ? requireStaff() : requireAuth();
     window.mlmGateReady = gate;
   }

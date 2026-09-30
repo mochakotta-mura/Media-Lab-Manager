@@ -22,7 +22,7 @@ USERS = [
     ("student.alex", "Alex Morgan", "alex.morgan@krea.ac.in", "Film", "student", "2468"),
     ("student.priya", "Priya Shah", "priya.shah@krea.ac.in", "Communication", "student", "1357"),
     ("staff.maya", "Maya Chen", "maya.chen@krea.edu.in", "Media Lab", "media_lab", "8642"),
-    ("admin.demo", "Demo Administrator", "demo.admin@krea.medialab.in", "Media Lab", "admin", "9999"),
+    ("admin.demo", "Demo Administrator", "demo.admin@krea.edu.in", "Media Lab", "admin", "9999"),
 ]
 
 LISTINGS = [
@@ -66,14 +66,17 @@ def main() -> None:
 
     for krea_id, name, email, department, role, pin in USERS:
         connection.execute(
-            """INSERT OR IGNORE INTO users
-               (krea_id,name,email,department,role,pin_hash)
-               VALUES (?,?,?,?,?,?)""",
+            """INSERT INTO users (krea_id,name,email,department,role,pin_hash)
+               VALUES (?,?,?,?,?,?)
+               ON CONFLICT(krea_id) DO UPDATE SET
+                 name=excluded.name,
+                 email=excluded.email,
+                 department=excluded.department,
+                 role=excluded.role,
+                 pin_hash=excluded.pin_hash,
+                 banned=0,
+                 updated_at=CURRENT_TIMESTAMP""",
             (krea_id, name, email, department, role, pin_hash(pin)),
-        )
-        connection.execute(
-            "UPDATE users SET pin_hash=? WHERE krea_id=? AND (pin_hash='' OR pin_hash IS NULL)",
-            (pin_hash(pin), krea_id),
         )
 
     connection.executemany(

@@ -8,7 +8,7 @@ From the repository root:
 
     python MLM.Database/seed_test_equipment.py
 
-The initializer creates the schema if necessary and adds a consistent example set without deleting existing data. Running it again is safe: users, listings, equipment units, and example requests are identified and not duplicated. It creates four login accounts, ten catalog listings, 24 individually tracked equipment units, and examples of a pending request, an active loan, and a damaged return.
+The initializer creates the schema if necessary and upserts a consistent example set without duplicating users, listings, equipment units, or example requests. It corrects seeded names, email addresses, roles, and PINs when an older local database already exists. It creates four login accounts, ten catalog listings, 24 individually tracked equipment units, and examples of a pending request, an active loan, and a damaged return.
 
 Example PINs:
 
@@ -16,6 +16,8 @@ Example PINs:
 - Priya Shah: 1357
 - Maya Chen (staff): 8642
 - Demo Administrator: 9999
+
+Maya and the Demo Administrator use `@krea.edu.in`; the administrator account is `demo.admin@krea.edu.in`.
 
 Set MEDIA_LAB_DB to initialize a different SQLite file. The initializer is for local/testing databases, not production data. Its sample images are placeholders from placehold.co and are attributed in the seed code; replace them with approved lab assets before production.
 
@@ -31,7 +33,9 @@ The equipment table remains the authoritative inventory. Each physical unit has 
 
 For example, the catalog has one E27 LED Lightbulb listing with quantity 5, while the database has five separate E27 bulb equipment rows. If one bulb is damaged, only that unit becomes damaged and the listing reports four available units.
 
-Database.get_listings() returns catalog rows with total_quantity, available_quantity, checked_out_quantity, equipment_ids, and available_equipment_ids. Individual equipment remains available through the existing equipment methods for staff-level inventory operations.
+Database.get_listings() returns catalog rows with total_quantity, available_quantity, checked_out_quantity, lost_quantity, damaged_quantity, equipment_ids, and available_equipment_ids. Individual equipment remains available through the existing equipment methods for staff-level inventory operations.
+
+Equipment edits use `update_equipment()`, commit to SQLite, create an audit record and outbox event, and are immediately reflected by `get_listings()`. A unit marked `lost`, `damaged`, `maintenance`, or another non-available status remains unavailable after refresh and cannot be booked.
 
 ## Python use
 
