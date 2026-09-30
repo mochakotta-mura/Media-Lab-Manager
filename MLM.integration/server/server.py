@@ -42,6 +42,39 @@ STAFF_ROLES = {"faculty", "media_lab", "admin", "staff"}
 ADMIN_EMAILS = {"bing@krea.edu.in"}
 
 
+def ensure_return_submission_schema():
+    """Create the return-submission records used by two-party verification."""
+    db.connection.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS return_submissions (
+          id INTEGER PRIMARY KEY,
+          request_id INTEGER NOT NULL UNIQUE REFERENCES requests(id) ON DELETE CASCADE,
+          submitted_by INTEGER NOT NULL REFERENCES users(id),
+          submitted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          claimed_returned_at TEXT NOT NULL,
+          student_condition TEXT DEFAULT '',
+          damage_description TEXT DEFAULT '',
+          missing_items TEXT DEFAULT '',
+          photo_references TEXT DEFAULT '[]',
+          verification_status TEXT NOT NULL DEFAULT 'return_submitted'
+            CHECK(verification_status IN ('return_submitted','verified_returned','verified_damaged','missing_items','disputed_return')),
+          verified_at TEXT,
+          verified_by INTEGER REFERENCES users(id),
+          actual_returned_at TEXT,
+          staff_condition TEXT DEFAULT '',
+          staff_notes TEXT DEFAULT '',
+          verification_photos TEXT DEFAULT '[]'
+        );
+        CREATE INDEX IF NOT EXISTS idx_return_submissions_status
+          ON return_submissions(verification_status);
+        """
+    )
+    db.connection.commit()
+
+
+ensure_return_submission_schema()
+
+
 class ApiError(Exception):
     def __init__(self, message: str, status: int = 400):
         """Represent an API error with an HTTP status code."""
@@ -182,8 +215,107 @@ def iso_date(value: str, field: str) -> datetime:
 
 
 def request_view(request_id: int):
-    """Return one request with its items and time windows."""
-    return db._request_view(request_id)
+    """Return one request with its items, windows, and return submission."""
+    request = db._request_view(request_id)
+    if request:
+        request["return_submission"] = return_submission_view(request_id)
+    return request
+
+
+def return_submission_view(request_id: int):
+    """Return the student submission and staff verification details."""
+    row = db.connection.execute(
+        "SELECT * FROM return_submissions WHERE request_id=?", (request_id,)
+    ).fetchone()
+    if not row:
+        return None
+    result = dict(row)
+    for field in ("photo_references", "verification_photos"):
+        try:
+            result[field] = json.loads(result[field] or "[]")
+        except (TypeError, json.JSONDecodeError):
+            result[field] = []
+    return result
+
+
+def return_payload(data: dict, request_id: int, user_id: int):
+    """Normalize return-submission fields and attach the authenticated user."""
+    claimed = data.get("claimedReturnedAt") or data.get("returnedAt")
+    iso_date(claimed, "claimedReturnedAt")
+    photos = data.get("photoReferences", data.get("photos", []))
+    if not isinstance(photos, list):
+        raise ApiError("photoReferences must be a list")
+    return {
+        "requestId": request_id,
+        "submittedBy": user_id,
+        "claimedReturnedAt": claimed,
+        "studentCondition": data.get("studentCondition", data.get("condition", "")),
+        "damageDescription": data.get("damageDescription", data.get("notes", "")),
+        "missingItems": data.get("missingItems", ""),
+        "photoReferences": photos,
+    }
+
+
+def create_return_submission(data: dict):
+    """Store or replace a student's pending return submission."""
+    existing = db.connection.execute(
+        "SELECT verification_status FROM return_submissions WHERE request_id=?", (data["requestId"],)
+    ).fetchone()
+    if existing and existing["verification_status"] in {"verified_returned", "verified_damaged", "missing_items"}:
+        raise ApiError("This return has already been verified", 409)
+    db.connection.execute(
+        """INSERT INTO return_submissions
+           (request_id,submitted_by,claimed_returned_at,student_condition,damage_description,missing_items,photo_references,verification_status)
+           VALUES (?,?,?,?,?,?,?,'return_submitted')
+           ON CONFLICT(request_id) DO UPDATE SET
+             submitted_by=excluded.submitted_by,submitted_at=CURRENT_TIMESTAMP,
+             claimed_returned_at=excluded.claimed_returned_at,student_condition=excluded.student_condition,
+             damage_description=excluded.damage_description,missing_items=excluded.missing_items,
+             photo_references=excluded.photo_references,verification_status='return_submitted',
+             verified_at=NULL,verified_by=NULL,actual_returned_at=NULL,staff_condition='',staff_notes='',verification_photos='[]'""",
+        (data["requestId"], data["submittedBy"], data["claimedReturnedAt"], data["studentCondition"],
+         data["damageDescription"], data["missingItems"], json.dumps(data["photoReferences"])),
+    )
+    db._audit(data["submittedBy"], "request", data["requestId"], "return_submitted", data)
+    db._emit("return.submitted", "request", data["requestId"], data)
+    db.connection.commit()
+    return return_submission_view(data["requestId"])
+
+
+def verify_return_submission(data: dict):
+    """Apply a staff decision and finalize verified returns when appropriate."""
+    valid = {"verified_returned", "verified_damaged", "missing_items", "disputed_return"}
+    status = data.get("verificationStatus")
+    if status not in valid:
+        raise ApiError("Invalid verificationStatus")
+    submission = return_submission_view(data["requestId"])
+    if not submission:
+        raise ApiError("No return submission exists", 404)
+    actual = data.get("actualReturnedAt") or submission["claimed_returned_at"]
+    iso_date(actual, "actualReturnedAt")
+    photos = data.get("verificationPhotos", [])
+    if not isinstance(photos, list):
+        raise ApiError("verificationPhotos must be a list")
+    db.connection.execute(
+        """UPDATE return_submissions SET verification_status=?,verified_at=CURRENT_TIMESTAMP,
+           verified_by=?,actual_returned_at=?,staff_condition=?,staff_notes=?,verification_photos=?
+           WHERE request_id=?""",
+        (status, data["verifiedBy"], actual, data.get("staffCondition", ""),
+         data.get("staffNotes", ""), json.dumps(photos), data["requestId"]),
+    )
+    if status in {"verified_returned", "verified_damaged", "missing_items"}:
+        db.record_return({
+            "requestId": data["requestId"],
+            "actorId": data["verifiedBy"],
+            "returnedAt": actual,
+            "condition": data.get("staffCondition") or submission["student_condition"],
+            "damageFlag": status in {"verified_damaged", "missing_items"},
+            "notes": data.get("staffNotes", "") or submission["damage_description"],
+        })
+    db._audit(data["verifiedBy"], "request", data["requestId"], "return_verified", data)
+    db._emit("return.verified", "request", data["requestId"], data)
+    db.connection.commit()
+    return return_submission_view(data["requestId"])
 
 
 def request_owner(request_id: int):
@@ -442,6 +574,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
             request = request_owner(request_id)
             action = parts[3]
             staff_access = is_staff(user)
+            if action == "return-submission":
+                if request["requester_id"] != user["id"] and not staff_access:
+                    raise ApiError("You do not own this request", 403)
+                if method == "GET":
+                    return self.send_json(200, return_submission_view(request_id))
+                if method == "POST":
+                    return self.send_json(202, create_return_submission(return_payload(data, request_id, user["id"])))
+                raise ApiError("Method not allowed", 405)
+            if action == "return-verification":
+                if method != "POST":
+                    raise ApiError("Method not allowed", 405)
+                self.require_staff()
+                verification = {**data, "requestId": request_id, "verifiedBy": user["id"]}
+                return self.send_json(200, verify_return_submission(verification))
             if action == "cancel":
                 if request["requester_id"] != user["id"] and not staff_access:
                     raise ApiError("You do not own this request", 403)
@@ -474,6 +620,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if action == "return":
                 if request["requester_id"] != user["id"] and not staff_access:
                     raise ApiError("You do not own this request", 403)
+                if method == "POST" and not staff_access:
+                    return self.send_json(202, create_return_submission(return_payload(data, request_id, user["id"])))
                 body = {**data, "requestId": request_id, "actorId": user["id"]}
                 return self.send_json(200, db.record_return(body))
         if len(parts) == 4 and parts[1] == "request-items" and parts[3] == "damage":
