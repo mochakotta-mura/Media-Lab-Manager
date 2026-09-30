@@ -52,24 +52,8 @@ Main operations include:
 
 Request data normally moves through pending, approved, pickup_pending, picked_up, and returned. Rejection or cancellation releases equipment. A damaged return marks only the affected equipment unit as damaged.
 
-## Schema legend
+For detailed table definitions and relationships, see [schema/README.md](schema/README.md).
 
-- users: account, role, PIN-security, and ban state for each person.
-- sessions: active authenticated browser sessions.
-- auth_attempts: login-failure counters and temporary IP/email lockouts.
-- lab_settings: configurable lending and notification settings.
-- listings: catalog-level item descriptions, quantities, categories, locations, and images.
-- equipment: individually tracked physical units linked to a listing.
-- tags: reusable equipment labels.
-- equipment_tags: many-to-many links between equipment and tags.
-- requests: the overall booking request and its workflow status.
-- request_items: the individual equipment units included in a request.
-- time_windows: pickup, return, and extension dates for requests.
-- returns: pickup, return, condition, damage, no-show, and overdue information for each request item.
-- damage_reports: detailed damage reports linked to request items and reporting users.
-- ban_history: a history of user bans and unbans, including the acting user.
-- audit_log: records of important actions across users, requests, equipment, and other entities.
-- outbox_events: JSON events waiting to be delivered to notifications or integrations.
 ## Output format
 
 The module returns Python data structures, not formatted text:
