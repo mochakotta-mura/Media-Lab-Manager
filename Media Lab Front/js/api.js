@@ -36,6 +36,8 @@
     createUser: body => json('POST', '/users', body),
     users: () => call('/users'),
     equipment: (filters = {}) => call('/equipment?' + new URLSearchParams(filters)),
+    listings: (filters = {}) => call('/listings?' + new URLSearchParams(filters)),
+    policy: () => call('/policy'),
     addEquipment: body => json('POST', '/equipment', body),
     updateEquipment: (id, body) => call(`/equipment/${id}`, { method: 'PATCH', body }),
     stats: () => call('/equipment/stats'),

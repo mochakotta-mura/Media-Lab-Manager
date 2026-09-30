@@ -541,6 +541,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if method == "GET" and path == "/api/equipment":
             filters = {key: values[0] for key, values in data.items()}
             return self.send_json(200, db.find(filters))
+        if method == "GET" and path == "/api/listings":
+            filters = {key: values[0] for key, values in data.items()}
+            return self.send_json(200, db.get_listings(filters))
+        if method == "GET" and path == "/api/policy":
+            settings = db.get_settings()
+            return self.send_json(200, {"standardLoanHours": settings.get("standardLoanHours", settings.get("standard_loan_hours", 72))})
         if method == "GET" and path == "/api/equipment/stats":
             self.require_staff()
             return self.send_json(200, db.stats())

@@ -1,21 +1,14 @@
 (async function () {
-  const list = document.querySelector('#requestList');
-  if (!list) return;
+  const list = document.querySelector('#requestList'); if (!list) return;
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
-  const render = requests => {
-    list.innerHTML = requests.map(x => `<article class="request-card"><div class="request-head"><div><h2>Request #${x.id}</h2><p>${esc(x.requester_name || '')}</p></div><span class="status pending">pending</span></div><div class="request-details"><article><b>Equipment</b><p>${(x.items || []).map(i => esc(i.name || i.equipment_id)).join(', ')}</p></article><article><b>Purpose</b><p>${esc(x.purpose)}</p></article></div><div class="request-actions"><button class="reject" data-refresh-action="reject" data-id="${x.id}">Reject</button><button class="primary" data-refresh-action="approve" data-id="${x.id}">Approve</button></div></article>`).join('') || '<p>No pending requests.</p>';
-    list.querySelectorAll('[data-refresh-action]').forEach(button => button.onclick = async () => {
-      try {
-        if (button.dataset.refreshAction === 'approve') await mlmApi.approveRequest(button.dataset.id);
-        else await mlmApi.rejectRequest(button.dataset.id, undefined, prompt('Reason for rejection') || '');
-        await load();
-      } catch (error) { mlmUiError(error.message); }
-    });
+  const format = value => value ? new Date(value).toLocaleString() : '—';
+  const pendingMarkup = request => `<article class="request-card"><div class="request-head"><div><h2>Request #${request.id}</h2><p>${esc(request.requester_name || '')}</p></div><span class="status pending">pending</span></div><div class="request-details"><article><b>Equipment</b><p>${(request.items || []).map(item => esc(item.name || item.equipment_id)).join(', ')}</p></article><article><b>Purpose</b><p>${esc(request.purpose)}</p></article></div><div class="request-actions"><button class="reject" data-refresh-action="reject" data-id="${request.id}">Reject</button><button class="primary" data-refresh-action="approve" data-id="${request.id}">Approve</button></div></article>`;
+  const extensionMarkup = (request, window) => `<article class="request-card"><div class="request-head"><div><h2>Booking #${request.id}</h2><p>${esc(request.requester_name || '')}</p></div><span class="status pending">extension requested</span></div><div class="request-details"><article><b>Equipment</b><p>${(request.items || []).map(item => esc(item.name || item.equipment_id)).join(', ')}</p></article><article><b>Requested return</b><p>${format(window.ends_at)}</p></article></div><div class="request-actions"><button class="reject" data-extension-action="reject" data-request="${request.id}" data-start="${window.starts_at}" data-end="${window.ends_at}">Reject</button><button class="primary" data-extension-action="approve" data-request="${request.id}" data-start="${window.starts_at}" data-end="${window.ends_at}">Approve</button></div></article>`;
+  const render = requests => { const extensions = requests.flatMap(request => (request.windows || []).filter(window => window.kind === 'extension' && window.status === 'requested').map(window => ({ request, window }))); const pending = requests.filter(request => request.status === 'pending'); const sections = []; if (extensions.length) sections.push('<h2>Extension requests</h2>', ...extensions.map(({ request, window }) => extensionMarkup(request, window))); if (pending.length) sections.push('<h2>Pending requests</h2>', ...pending.map(pendingMarkup)); list.innerHTML = sections.join('') || '<p>No pending requests.</p>';
+    list.querySelectorAll('[data-refresh-action]').forEach(button => button.onclick = async () => { try { if (button.dataset.refreshAction === 'approve') await mlmApi.approveRequest(button.dataset.id); else await mlmApi.rejectRequest(button.dataset.id, undefined, prompt('Reason for rejection') || ''); await load(); } catch (error) { mlmUiError(error.message); } });
+    list.querySelectorAll('[data-extension-action]').forEach(button => button.onclick = async () => { try { await mlmApi.scheduleWindow({ requestId: Number(button.dataset.request), kind: 'extension', startsAt: button.dataset.start, endsAt: button.dataset.end, status: button.dataset.extensionAction === 'approve' ? 'approved' : 'rejected', notes: button.dataset.extensionAction === 'approve' ? 'Extension approved by Media Lab' : 'Extension rejected by Media Lab' }); await load(); } catch (error) { mlmUiError(error.message); } });
   };
-  const load = async () => {
-    try { const result = await mlmApi.requests('?status=pending'); render(Array.isArray(result) ? result : (result.requests || [])); }
-    catch (error) { if (error.message) mlmUiError(error.message); }
-  };
+  const load = async () => { try { const result = await mlmApi.requests(); render(Array.isArray(result) ? result : (result.requests || [])); } catch (error) { mlmUiError(error.message); } };
   const start = async () => { await load(); let button = document.querySelector('[data-refresh-requests]'); if (!button) { button = document.createElement('button'); button.className = 'outline'; button.dataset.refreshRequests = 'true'; button.textContent = 'Refresh requests'; document.querySelector('.page-heading')?.appendChild(button); } button.onclick = load; window.setInterval(load, 10000); };
   if (window.mlmApi) start(); else window.addEventListener('load', start, { once: true });
 })();

@@ -17,9 +17,11 @@
   if (profileDetails) profileDetails.textContent = user.email || '';
   const adminPage = location.pathname.includes('/pages/admin/');
   const links = adminPage
-    ? [['../../pages/catalog.html', 'Catalogue'], ['requests.html', 'Requests'], ['equipment.html', 'Equipments'], ['history.html', 'Report'], ['settings.html', 'Settings']]
+    ? [['../../pages/catalog.html', user.role === 'admin' ? 'User View' : 'Catalogue'], ['requests.html', 'Requests'], ['equipment.html', 'Equipments'], ['history.html', 'Report'], ['settings.html', 'Settings']]
     : [['catalog.html', 'Catalog'], ['bookings.html', 'Bookings & Cart'], ['history.html', 'My History'], ['notifications.html', 'Notifications'], ['profile.html', 'Profile']];
   nav.innerHTML = links.map(([href, label]) => `<a href="${href}">${label}</a>`).join('') + (!adminPage && staff ? '<a class="admin-link" href="admin/equipment.html">Admin Console</a>' : '');
+  const tools = document.querySelector('.header-tools');
+  if (tools && !tools.querySelector('[data-logout]')) { const logout = document.createElement('button'); logout.type = 'button'; logout.className = 'logout-button'; logout.dataset.logout = 'true'; logout.textContent = 'Log out'; logout.onclick = async () => { try { await window.mlmApi.logout(); } finally { location.href = '/'; } }; tools.appendChild(logout); }
   if (adminPage) {
     const current = location.pathname.split('/').pop();
     nav.querySelectorAll('a').forEach(link => { if (link.getAttribute('href')?.endsWith(current)) link.classList.add('active'); });
