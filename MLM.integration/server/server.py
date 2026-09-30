@@ -38,14 +38,14 @@ COOKIE_SECURE = os.environ.get(
 LOGIN_WINDOW_SECONDS = 15 * 60
 LOGIN_MAX_ATTEMPTS = 5
 LOGIN_LOCK_SECONDS = 15 * 60
-STAFF_ROLES = {"faculty", "media_lab", "admin", "staff"}
+STAFF_ROLES = {"admin"}
 
 ROLE_BY_EMAIL_DOMAIN = {
     "krea.ac.in": "student",
     "krea.edu.in": "faculty",
     "krea.medialab.in": "admin",
 }
-STAFF_EMAIL_DOMAINS = {"krea.edu.in", "krea.medialab.in"}
+STAFF_EMAIL_DOMAINS = {"krea.medialab.in"}
 
 
 def ensure_return_submission_schema():
@@ -109,8 +109,10 @@ def verify_pin(pin: str, encoded: str) -> bool:
 
 def public_user(user: dict) -> dict:
     """Return the safe user fields exposed to the frontend."""
+    email = str(user.get("email", "")).lower()
+    role = role_for_email(email) or user.get("role", "student")
     return {"id": user["id"], "kreaId": user["krea_id"], "name": user["name"],
-            "email": user.get("email"), "role": user.get("role", "student")}
+            "email": user.get("email"), "role": role}
 
 
 def is_staff(user: dict) -> bool:

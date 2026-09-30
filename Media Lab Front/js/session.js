@@ -1,6 +1,6 @@
 /* Shared session and role gate. Pages load this before page-specific code. */
 (function () {
-  const STAFF_ROLES = new Set(['faculty', 'media_lab', 'staff', 'admin']);
+  const STAFF_ROLES = new Set(['admin']);
   let userPromise;
   let currentUser = null;
   const isLoginPage = /\/index\.html$|\/$/.test(location.pathname);
