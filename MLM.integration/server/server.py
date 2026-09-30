@@ -39,7 +39,13 @@ LOGIN_WINDOW_SECONDS = 15 * 60
 LOGIN_MAX_ATTEMPTS = 5
 LOGIN_LOCK_SECONDS = 15 * 60
 STAFF_ROLES = {"faculty", "media_lab", "admin", "staff"}
-ADMIN_EMAILS = {"bing@krea.edu.in"}
+
+ROLE_BY_EMAIL_DOMAIN = {
+    "krea.ac.in": "student",
+    "krea.edu.in": "faculty",
+    "krea.medialab.in": "admin",
+}
+STAFF_EMAIL_DOMAINS = {"krea.edu.in", "krea.medialab.in"}
 
 
 class ApiError(Exception):
@@ -70,22 +76,27 @@ def verify_pin(pin: str, encoded: str) -> bool:
 
 def public_user(user: dict) -> dict:
     """Return the safe user fields exposed to the frontend."""
-    email = str(user.get("email", "")).lower()
-    role = "admin" if email in ADMIN_EMAILS else user.get("role", "student")
     return {"id": user["id"], "kreaId": user["krea_id"], "name": user["name"],
-            "email": user.get("email"), "role": role}
+            "email": user.get("email"), "role": user.get("role", "student")}
 
 
 def is_staff(user: dict) -> bool:
     """Check whether a user may access staff operations."""
-    email = str(user.get("email", "")).lower()
-    return email in ADMIN_EMAILS or (user.get("role") in STAFF_ROLES and email.endswith("@krea.edu.in"))
+    return user.get("role") in STAFF_ROLES and is_staff_email(user.get("email"))
 
 
 def is_admin(user: dict) -> bool:
     """Check whether a user may access administrator operations."""
     email = str(user.get("email", "")).lower()
-    return email in ADMIN_EMAILS or (user.get("role") == "admin" and email.endswith("@krea.edu.in"))
+    return user.get("role") == "admin" and email.endswith("@krea.medialab.in")
+
+
+def role_for_email(email: str) -> str | None:
+    return ROLE_BY_EMAIL_DOMAIN.get(email.rsplit("@", 1)[-1].lower())
+
+
+def is_staff_email(email: str | None) -> bool:
+    return str(email or "").lower().rsplit("@", 1)[-1] in STAFF_EMAIL_DOMAINS
 
 
 def token_hash(token: str) -> str:
@@ -497,15 +508,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
         """Validate credentials and create a database-backed session."""
         email = str(data.get("email", "")).lower().strip()
         pin = str(data.get("pin", ""))
-        if not re.match(r"^[^@\s]+@krea\.(ac\.in|edu\.in)$", email):
-            raise ApiError("Use a valid @krea.ac.in or @krea.edu.in email address")
+        assigned_role = role_for_email(email)
+        if not assigned_role or not re.match(r"^[^@\s]+@(?:krea\.ac\.in|krea\.edu\.in|krea\.medialab\.in)$", email):
+            raise ApiError("Use a valid @krea.ac.in, @krea.edu.in, or @krea.medialab.in email address")
         if len(pin) != 4 or not pin.isdigit():
             raise ApiError("PIN must be exactly 4 digits")
         row = db.connection.execute("SELECT * FROM users WHERE email=? LIMIT 1", (email,)).fetchone()
         user = dict(row) if row else None
         if not user:
-            user = db.add_user({"kreaId": email, "name": email.split("@", 1)[0], "email": email, "role": "student"})
+            user = db.add_user({"kreaId": email, "name": email.split("@", 1)[0], "email": email, "role": assigned_role})
             user["pin_hash"] = ""
+        elif user.get("role") != assigned_role:
+            db.connection.execute("UPDATE users SET role=?,updated_at=CURRENT_TIMESTAMP WHERE id=?", (assigned_role, user["id"]))
+            db.connection.commit()
+            user["role"] = assigned_role
         check_login_allowed(self.client_address[0], email, user)
         encoded = user.get("pin_hash") or ""
         if encoded:

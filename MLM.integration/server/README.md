@@ -46,12 +46,13 @@ HOST=127.0.0.1 PORT=3000 MEDIA_LAB_DB=/path/to/media-lab.sqlite \
 The login endpoint accepts:
 
 - Students with `@krea.ac.in` addresses.
-- Faculty and Media Lab accounts with `@krea.edu.in` addresses.
+- Faculty with `@krea.edu.in` addresses.
+- Presentation administrators with `@krea.medialab.in` addresses.
 - A four-digit PIN.
 
 The server sets an HttpOnly, SameSite=Strict session cookie. In production the cookie is also Secure; local HTTP development can explicitly set `COOKIE_SECURE=false`. Session records and scrypt PIN hashes are persisted in SQLite, and sessions expire after eight hours.
 
-This is the current development authentication flow. Krea SSO is not implemented.
+This is the current development authentication flow. Roles are assigned from the email domain for the presentation: `@krea.ac.in` becomes `student`, `@krea.edu.in` becomes `faculty`, and `@krea.medialab.in` becomes `admin`. Krea SSO is not implemented.
 
 ## API coverage
 
@@ -71,7 +72,6 @@ All protected API calls require the session cookie. Mutating requests also requi
 
 - Students can browse equipment, create requests, view their own requests, cancel owned requests, and submit owned returns.
 - Faculty and Media Lab users can review requests, approve or reject them, manage pickup and return workflows, report damage, and access administrative data.
-- `bing@krea.edu.in` is explicitly recognized as an administrator.
 - Requester and actor IDs supplied by the browser are ignored; the authenticated session determines the acting user.
 
 ## Data and validation

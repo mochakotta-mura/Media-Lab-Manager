@@ -18,10 +18,10 @@ from mlm_database_commands import Database
 DB_PATH = Path(os.environ.get("MEDIA_LAB_DB", Path(__file__).with_name("media-lab.sqlite")))
 
 USERS = [
-    ("student.alex", "Alex Morgan", "alex.morgan@krea.edu.in", "Film", "student", "2468"),
-    ("student.priya", "Priya Shah", "priya.shah@krea.edu.in", "Communication", "student", "1357"),
+    ("student.alex", "Alex Morgan", "alex.morgan@krea.ac.in", "Film", "student", "2468"),
+    ("student.priya", "Priya Shah", "priya.shah@krea.ac.in", "Communication", "student", "1357"),
     ("staff.maya", "Maya Chen", "maya.chen@krea.edu.in", "Media Lab", "media_lab", "8642"),
-    ("admin.demo", "Demo Administrator", "demo.admin@krea.edu.in", "Media Lab", "admin", "9999"),
+    ("admin.demo", "Demo Administrator", "demo.admin@krea.medialab.in", "Media Lab", "admin", "9999"),
 ]
 
 LISTINGS = [
