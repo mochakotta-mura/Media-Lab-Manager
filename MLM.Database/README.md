@@ -17,11 +17,15 @@ Example PINs:
 - Maya Chen (staff): 8642
 - Demo Administrator: 9999
 
-Set MEDIA_LAB_DB to initialize a different SQLite file. The initializer is for local/testing databases, not production data.
+Set MEDIA_LAB_DB to initialize a different SQLite file. The initializer is for local/testing databases, not production data. Its sample images are placeholders from placehold.co and are attributed in the seed code; replace them with approved lab assets before production.
 
 ## Listings versus equipment
 
-The listings table is the frontend catalog. One row represents a type of item and includes its quantity, category, location, and description.
+The listings table is the frontend catalog. One row represents a type of item and includes its quantity, category, location, description, and images. Images are stored as JSON and returned as a list of objects containing url, alt, and attribution.
+Example image value:
+
+    [{"url": "https://placehold.co/800x500/png?text=Camera", "alt": "Camera", "attribution": "Placeholder image: placehold.co"}]
+
 
 The equipment table remains the authoritative inventory. Each physical unit has its own asset code, optional serial number, status, pickup history, return record, and damage reports. Equipment units link to a listing through listing_id.
 
@@ -55,10 +59,10 @@ The module returns Python data structures, not formatted text:
 - One record: a dict with database column names.
 - Collections: a list of record dictionaries.
 - Request results: a request dictionary containing items and windows lists.
-- get_listings: catalog dictionaries containing quantity and availability counts plus unit ID lists.
+- get_listings: catalog dictionaries containing quantity and availability counts, unit ID lists, and an images list.
 - get_dashboard: a dictionary with pendingRequests, windows, and equipment lists.
 - get_outbox: event dictionaries containing event type, aggregate ID, payload, and publication timestamps.
 
 Use json.dumps(result) when an API needs JSON output. Dates must be ISO-8601 strings, and IDs are integer database IDs.
 
-Call close() during process shutdown. Do not commit node_modules, SQLite database files, or generated logs. The original JavaScript command file remains available for compatibility.
+Call close() during process shutdown. Do not commit node_modules, SQLite database files, or generated logs. The JavaScript command file is legacy; the Python module is authoritative for listings, images, authentication fields, and current database behavior.

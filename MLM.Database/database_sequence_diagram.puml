@@ -1,0 +1,105 @@
+@startuml
+title Media Lab Manager - Database Workflow
+
+actor Backend
+participant "Database facade" as DB
+database SQLite
+participant "Audit log" as Audit
+participant "Outbox" as Outbox
+
+== Database initialization ==
+
+Backend -> DB: Database(path)
+DB -> SQLite: Open database
+DB -> SQLite: Create missing tables
+DB -> SQLite: Migrate listings.images
+DB -> SQLite: Migrate equipment.listing_id
+DB --> Backend: Ready
+
+== Example data ==
+
+Backend -> DB: Run seed_test_equipment.py
+DB -> SQLite: Insert example users/settings
+DB -> SQLite: Insert listings with images JSON
+DB -> SQLite: Insert individual equipment units
+DB -> SQLite: Insert sample requests and lifecycle records
+DB --> Backend: Seed summary
+
+== Catalog display ==
+
+Backend -> DB: get_listings(filters)
+DB -> SQLite: Read listings and linked equipment
+SQLite --> DB: Quantity, status, unit IDs, images
+DB --> Backend: Catalog dictionaries
+note right
+  images is returned as a list of objects:
+  url, alt, attribution
+end note
+
+== Create request ==
+
+Backend -> DB: create_request(request data)
+DB -> SQLite: Check requester
+DB -> SQLite: Check equipment exists and is available
+DB -> SQLite: Check overlapping time windows
+alt Invalid or unavailable
+  DB --> Backend: Error
+else Available
+  DB -> SQLite: Insert request and request_items
+  DB -> SQLite: Mark equipment requested
+  DB -> SQLite: Insert pickup/return windows
+  DB -> Audit: Record request.created
+  DB -> Outbox: Emit request.created
+  DB --> Backend: Request with items and windows
+end
+
+== Approval or cancellation ==
+
+Backend -> DB: approve_request / reject_request / cancel_request
+DB -> SQLite: Update request and item statuses
+DB -> SQLite: Update equipment status
+DB -> Audit: Record status change
+DB -> Outbox: Emit request event
+DB --> Backend: Updated request
+
+== Pickup ==
+
+Backend -> DB: record_pickup(requestId)
+DB -> SQLite: Create/update return records
+DB -> SQLite: Mark request items and equipment picked_up
+DB -> Audit: Record pickup.confirmed
+DB -> Outbox: Emit pickup.confirmed
+DB --> Backend: Updated request
+
+== Return and damage ==
+
+Backend -> DB: record_return(requestId, condition, damageFlag)
+DB -> SQLite: Record return condition
+DB -> SQLite: Mark item returned or damaged
+DB -> SQLite: Mark equipment available or damaged
+DB -> Audit: Record return.recorded
+DB -> Outbox: Emit return.recorded
+DB --> Backend: Updated request
+
+Backend -> DB: record_damage(requestItemId, description)
+DB -> SQLite: Insert damage report
+DB -> SQLite: Mark request item and equipment damaged
+DB -> Audit: Record damage.reported
+DB -> Outbox: Emit damage.reported
+DB --> Backend: Damage report
+
+== Integration events ==
+
+Backend -> DB: get_outbox(limit)
+DB -> SQLite: Read unpublished events
+SQLite --> DB: Event rows with JSON payloads
+DB --> Backend: Event list
+Backend -> DB: mark_events_published(ids)
+DB -> SQLite: Set published_at timestamps
+
+== Shutdown ==
+
+Backend -> DB: close()
+DB -> SQLite: Close connection
+
+@enduml

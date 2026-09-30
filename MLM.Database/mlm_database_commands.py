@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS listings (
   id INTEGER PRIMARY KEY, listing_code TEXT NOT NULL UNIQUE,
   name TEXT NOT NULL, description TEXT DEFAULT '', category TEXT DEFAULT '',
   location TEXT DEFAULT '', quantity INTEGER NOT NULL DEFAULT 0 CHECK(quantity >= 0),
+  images TEXT NOT NULL DEFAULT '[]',
   created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS equipment (
@@ -122,7 +123,7 @@ def _now() -> str:
 
 
 def _json(value: Any) -> str:
-    return json.dumps(value or {}, separators=(",", ":"))
+    return json.dumps({} if value is None else value, separators=(",", ":"))
 
 
 def _row(row: sqlite3.Row | None) -> dict[str, Any] | None:
@@ -157,6 +158,9 @@ class Database:
             except sqlite3.OperationalError as error:
                 if "duplicate column name" not in str(error).lower():
                     raise
+        listing_columns = {row[1] for row in self.connection.execute("PRAGMA table_info(listings)")}
+        if "images" not in listing_columns:
+            self.connection.execute("ALTER TABLE listings ADD COLUMN images TEXT NOT NULL DEFAULT '[]'")
         equipment_columns = {row[1] for row in self.connection.execute("PRAGMA table_info(equipment)")}
         if "listing_id" not in equipment_columns:
             self.connection.execute("ALTER TABLE equipment ADD COLUMN listing_id INTEGER REFERENCES listings(id)")
@@ -201,7 +205,7 @@ class Database:
             "SELECT id,krea_id,name,email,department,role,banned,created_at FROM users ORDER BY name COLLATE NOCASE"
         ))
 
-    def update_user(self, user_id: int, data: dict[str, Any]) -> dict[str, Any] | None:
+    def update_user(self, user_id: int, data: dict[str, Any], commit: bool = True) -> dict[str, Any] | None:
         fields = {"kreaId": "krea_id", "name": "name", "email": "email", "department": "department",
                   "role": "role", "banned": "banned", "banReason": "ban_reason"}
         updates = [(column, data[key]) for key, column in fields.items() if key in data]
@@ -209,12 +213,13 @@ class Database:
             assignments = ",".join(f"{column}=?" for column, _ in updates)
             self.connection.execute(f"UPDATE users SET {assignments},updated_at=? WHERE id=?",
                                     [value for _, value in updates] + [_now(), user_id])
-            self.connection.commit()
+            if commit:
+                self.connection.commit()
         return _row(self.connection.execute("SELECT * FROM users WHERE id=?", (user_id,)).fetchone())
 
     def ban_user(self, user_id: int, reason: str = "", actor_id: int | None = None):
         with self._transaction():
-            self.update_user(user_id, {"banned": 1, "banReason": reason})
+            self.update_user(user_id, {"banned": 1, "banReason": reason}, commit=False)
             self.connection.execute("INSERT INTO ban_history(user_id,action,reason,actor_id) VALUES (?,?,?,?)",
                                     (user_id, "banned", reason, actor_id))
             self._audit(actor_id, "user", user_id, "banned", {"reason": reason})
@@ -223,7 +228,7 @@ class Database:
 
     def unban_user(self, user_id: int, actor_id: int | None = None):
         with self._transaction():
-            self.update_user(user_id, {"banned": 0, "banReason": ""})
+            self.update_user(user_id, {"banned": 0, "banReason": ""}, commit=False)
             self.connection.execute("INSERT INTO ban_history(user_id,action,actor_id) VALUES (?,?,?)",
                                     (user_id, "unbanned", actor_id))
             self._audit(actor_id, "user", user_id, "unbanned")
@@ -234,12 +239,15 @@ class Database:
         if not data.get("listingCode") or not data.get("name"):
             raise ValueError("listingCode and name are required")
         cur = self.connection.execute(
-            "INSERT INTO listings(listing_code,name,description,category,location,quantity) VALUES (?,?,?,?,?,?)",
+            "INSERT INTO listings(listing_code,name,description,category,location,quantity,images) VALUES (?,?,?,?,?,?,?)",
             (data["listingCode"], data["name"], data.get("description", ""), data.get("category", ""),
-             data.get("location", ""), int(data.get("quantity", 0))),
+             data.get("location", ""), int(data.get("quantity", 0)), _json(data.get("images", []))),
         )
         self.connection.commit()
-        return _row(self.connection.execute("SELECT * FROM listings WHERE id=?", (cur.lastrowid,)).fetchone())
+        result = _row(self.connection.execute("SELECT * FROM listings WHERE id=?", (cur.lastrowid,)).fetchone())
+        decoded_images = json.loads(result.get("images") or "[]")
+        result["images"] = decoded_images if isinstance(decoded_images, list) else []
+        return result
 
     def get_listings(self, filters=None):
         filters = filters or {}
@@ -261,6 +269,11 @@ class Database:
             if filters.get("status") == "available" and not row["available_quantity"]:
                 continue
             item = dict(row)
+            try:
+                decoded_images = json.loads(item.get("images") or "[]")
+                item["images"] = decoded_images if isinstance(decoded_images, list) else []
+            except (TypeError, json.JSONDecodeError):
+                item["images"] = []
             for key in ("equipment_ids", "available_equipment_ids"):
                 item[key] = [int(value) for value in item[key].split(",") if value] if item[key] else []
             item["listing_id"] = item["id"]
@@ -347,6 +360,15 @@ class Database:
                 raise ValueError("user not found")
             if user["banned"]:
                 raise ValueError("user is banned")
+            marks = ",".join("?" for _ in ids)
+            equipment_rows = self.connection.execute(f"SELECT id,status FROM equipment WHERE id IN ({marks})", ids).fetchall()
+            found_ids = {row["id"] for row in equipment_rows}
+            missing_ids = [equipment_id for equipment_id in ids if equipment_id not in found_ids]
+            if missing_ids:
+                raise ValueError("equipment not found: " + ",".join(map(str, missing_ids)))
+            unavailable = [row["id"] for row in equipment_rows if row["status"] != "available"]
+            if unavailable:
+                raise ValueError("equipment unavailable: " + ",".join(map(str, unavailable)))
             conflicts = self.check_availability(ids, data.get("pickupStartsAt"), data.get("returnEndsAt"))
             if conflicts:
                 raise ValueError("equipment unavailable: " + ",".join(map(str, conflicts)))
@@ -436,6 +458,7 @@ class Database:
     def record_damage(self, data):
         cur = self.connection.execute("INSERT INTO damage_reports(request_item_id,reported_by,description,severity) VALUES (?,?,?,?)", (data["requestItemId"], data.get("reportedBy"), data["description"], data.get("severity", "unknown")))
         self.connection.execute("UPDATE request_items SET status='damaged' WHERE id=?", (data["requestItemId"],))
+        self.connection.execute("UPDATE equipment SET status='damaged',updated_at=? WHERE id IN (SELECT equipment_id FROM request_items WHERE id=?)", (_now(), data["requestItemId"]))
         self._audit(data.get("reportedBy"), "request_item", data["requestItemId"], "damage_reported", data)
         self._emit("damage.reported", "request_item", data["requestItemId"], data)
         self.connection.commit()

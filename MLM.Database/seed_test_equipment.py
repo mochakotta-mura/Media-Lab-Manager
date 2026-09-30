@@ -7,6 +7,7 @@ Run from the repository root with:
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import sys
 from pathlib import Path
@@ -37,6 +38,21 @@ LISTINGS = [
     ("DISPLAY-NINJA", "Atomos Ninja V Monitor", "On-camera monitor.", "Accessories", "Service Desk", 1),
 ]
 
+
+# Image attribution: these are sample placeholder images served by placehold.co.
+# Replace them with approved lab photographs and retain the source/credit metadata.
+IMAGES = {
+    "CAM-FX3": [{"url": "https://placehold.co/800x500/png?text=Sony+FX3", "alt": "Sony FX3 cinema camera", "attribution": "Placeholder image: placehold.co"}],
+    "CAM-R6": [{"url": "https://placehold.co/800x500/png?text=Canon+R6", "alt": "Canon EOS R6 Mark II", "attribution": "Placeholder image: placehold.co"}],
+    "LENS-2470": [{"url": "https://placehold.co/800x500/png?text=Sigma+24-70mm", "alt": "Sigma 24-70mm zoom lens", "attribution": "Placeholder image: placehold.co"}],
+    "AUDIO-RODE": [{"url": "https://placehold.co/800x500/png?text=Wireless+GO+II", "alt": "RØDE Wireless GO II kit", "attribution": "Placeholder image: placehold.co"}],
+    "AUDIO-ZOOM": [{"url": "https://placehold.co/800x500/png?text=Zoom+H6", "alt": "Zoom H6 field recorder", "attribution": "Placeholder image: placehold.co"}],
+    "LIGHT-120D": [{"url": "https://placehold.co/800x500/png?text=Aputure+120d", "alt": "Aputure 120d II LED light", "attribution": "Placeholder image: placehold.co"}],
+    "LIGHT-BULB": [{"url": "https://placehold.co/800x500/png?text=LED+Bulb", "alt": "E27 LED lightbulb", "attribution": "Placeholder image: placehold.co"}],
+    "GRIP-TRIPOD": [{"url": "https://placehold.co/800x500/png?text=Video+Tripod", "alt": "Manfrotto video tripod", "attribution": "Placeholder image: placehold.co"}],
+    "GRIP-RS3": [{"url": "https://placehold.co/800x500/png?text=DJI+RS+3", "alt": "DJI RS 3 gimbal", "attribution": "Placeholder image: placehold.co"}],
+    "DISPLAY-NINJA": [{"url": "https://placehold.co/800x500/png?text=Atomos+Ninja+V", "alt": "Atomos Ninja V monitor", "attribution": "Placeholder image: placehold.co"}],
+}
 
 def pin_hash(pin: str) -> str:
     salt = hashlib.sha256(("example-salt-" + pin).encode()).digest()[:16]
@@ -69,10 +85,11 @@ def main() -> None:
     for code, name, description, category, location, quantity in LISTINGS:
         connection.execute(
             """INSERT OR IGNORE INTO listings
-               (listing_code,name,description,category,location,quantity)
-               VALUES (?,?,?,?,?,?)""",
-            (code, name, description, category, location, quantity),
+               (listing_code,name,description,category,location,quantity,images)
+               VALUES (?,?,?,?,?,?,?)""",
+            (code, name, description, category, location, quantity, json.dumps(IMAGES[code])),
         )
+        connection.execute("UPDATE listings SET images=? WHERE listing_code=? AND (images IS NULL OR images IN ('[]','{}'))", (json.dumps(IMAGES[code]), code))
         listing_ids[code] = connection.execute(
             "SELECT id FROM listings WHERE listing_code=?", (code,)
         ).fetchone()["id"]
