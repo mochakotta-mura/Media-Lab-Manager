@@ -62,7 +62,7 @@ The server implements the operations exposed by `Media Lab Front/js/api.js`:
 - Users: staff user listing and administrator-only user creation (new users default to student).
 - Equipment: catalog search, statistics, creation, and updates.
 - Settings: administrator-only settings read and update.
-- Requests: create, list, approve, reject, cancel, schedule windows, extensions, pickup, and return.
+- Requests: create, list, approve, reject, cancel, schedule windows, extensions, pickup, return submission, return verification, and legacy staff return processing.
 - Damage: create damage reports for request items.
 - Administration: dashboard, audit history, and outbox events.
 
@@ -98,8 +98,9 @@ The server supports the live-data paths used by the maintained frontend:
 3. The booking page submits equipment and ISO-8601 time windows.
 4. Staff review pending requests and approve or reject them.
 5. Staff confirm pickup; the requester or staff records the return.
-6. Staff can record item damage.
-7. History, dashboard, audit, and outbox data are loaded through the API.
+6. Student return submissions remain pending until staff verification.
+7. Staff verify returns as `verified_returned`, `verified_damaged`, `missing_items`, or `disputed_return`.
+8. History, dashboard, audit, and outbox data are loaded through the API.
 
 Frontend-provided requester and actor IDs are not trusted; the authenticated session determines the acting user.
 
@@ -125,6 +126,20 @@ The following diagrammed features remain outside this server:
 - No-show timers, overdue warning sequences, and automatic bans.
 - Ban repeal workflows.
 - Full lender calendar/clash visualization.
+
+## Return confirmation workflow
+
+The server supports two-party return confirmation through:
+
+```text
+POST /api/requests/{id}/return-submission
+GET  /api/requests/{id}/return-submission
+POST /api/requests/{id}/return-verification
+```
+
+Student submissions include the claimed return time, condition, damage description, missing-item information, and photo references. Staff verification records the actual return time, staff condition, notes, verification status, and verification photo references.
+
+For compatibility with the current frontend, a student `POST /api/requests/{id}/return` is treated as a return submission. Staff can still use that route for legacy direct processing. Actual photo upload and file storage are not implemented; the API stores references only.
 
 Errors are returned as JSON:
 
