@@ -1,7 +1,5 @@
-/* Live equipment management for the staff inventory page. */
-const adminApiReady = window.mlmApi ? Promise.resolve() : new Promise((resolve, reject) => {
-  const script = document.createElement('script'); script.src = '../../js/api.js'; script.onload = resolve; script.onerror = reject; document.head.appendChild(script);
-});
+/* Live equipment management with an API-backed edit dialog. */
+const adminApiReady = window.mlmApi ? Promise.resolve() : new Promise((resolve, reject) => { const script = document.createElement('script'); script.src = '../../js/api.js'; script.onload = resolve; script.onerror = reject; document.head.appendChild(script); });
 adminApiReady.then(() => window.mlmSessionReady).then(() => mlmSession.requireStaff()).then(async () => {
   const rows = document.querySelector('#equipmentRows'); if (!rows) return;
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
@@ -10,13 +8,18 @@ adminApiReady.then(() => window.mlmSessionReady).then(() => mlmSession.requireSt
   let equipment = [];
   const render = category => {
     const query = (document.querySelector('#equipmentSearch')?.value || '').toLowerCase();
-    const filtered = equipment.filter(item => (category === 'All' || classify(item.name).toLowerCase() === category.toLowerCase()) && [item.name, item.asset_code, item.serial_number, item.description].join(' ').toLowerCase().includes(query));
-    rows.innerHTML = filtered.map(item => `<tr><td><b>${esc(item.name)}</b><br><small>${esc(item.description || '')}</small></td><td>${esc(item.category || classify(item.name))}</td><td>${esc(item.location || '—')}</td><td>${esc(item.total_quantity ?? 1)}</td><td>${esc(item.available_quantity ?? (item.status === 'available' ? 1 : 0))}</td><td>${esc(item.checked_out_quantity ?? 0)}</td><td>${status(item.status)}</td><td><button class="btn btn-ghost btn-sm" data-equipment-edit="${item.id}">Edit</button></td></tr>`).join('') || '<tr><td colspan="8" class="empty">No equipment matches this filter.</td></tr>';
-    document.querySelectorAll('[data-equipment-edit]').forEach(button => button.onclick = () => window.mlmUiError('Equipment editing is connected to the backend API; an edit form can be added without changing the endpoint contract.'));
+    const filtered = equipment.filter(item => (category === 'All' || classify(item.name).toLowerCase() === category.toLowerCase()) && [item.name, item.asset_code, item.serial_number, item.description, item.location].join(' ').toLowerCase().includes(query));
+    rows.innerHTML = filtered.map(item => `<tr><td><b>${esc(item.name)}</b><br><small>${esc(item.description || '')}</small></td><td>${esc(item.category || classify(item.name))}</td><td>${esc(item.total_quantity ?? 1)}</td><td>${esc(item.available_quantity ?? (item.status === 'available' ? 1 : 0))}</td><td>${esc(item.checked_out_quantity ?? 0)}</td><td>${status(item.status)}</td><td><button class="btn btn-ghost btn-sm" data-equipment-edit="${item.id}">Edit</button></td></tr>`).join('') || '<tr><td colspan="7" class="empty">No equipment matches this filter.</td></tr>';
+    document.querySelectorAll('[data-equipment-edit]').forEach(button => button.onclick = () => openEditor(equipment.find(item => String(item.id) === String(button.dataset.equipmentEdit))));
   };
-  try {
-    const result = await mlmApi.equipment({ limit: 1000 }); equipment = Array.isArray(result) ? result : (result.equipment || result.items || []); render('All');
-    document.querySelector('#equipmentSearch')?.addEventListener('input', () => render(document.querySelector('.admin-tabs .selected')?.dataset.filter || 'All'));
-    document.querySelectorAll('.admin-tabs button').forEach(button => button.onclick = () => { document.querySelectorAll('.admin-tabs button').forEach(x => x.classList.remove('selected')); button.classList.add('selected'); render(button.dataset.filter || button.textContent.trim()); });
-  } catch (error) { rows.innerHTML = `<tr><td colspan="8">${esc(error.message)}</td></tr>`; }
+  const closeEditor = () => document.querySelector('#equipmentEditor')?.remove();
+  const openEditor = item => {
+    if (!item) return;
+    closeEditor();
+    const dialog = document.createElement('div'); dialog.id = 'equipmentEditor'; dialog.className = 'modal-backdrop'; dialog.innerHTML = `<section class="equipment-editor" role="dialog" aria-modal="true" aria-labelledby="equipmentEditorTitle"><div class="editor-head"><div><h2 id="equipmentEditorTitle">Edit equipment</h2><p>Changes are saved to the Media Lab inventory.</p></div><button type="button" class="outline" data-editor-close aria-label="Close editor">×</button></div><form id="equipmentEditorForm" class="editor-form"><label>Name<input name="name" required value="${esc(item.name)}"></label><label>Asset code<input name="assetCode" required value="${esc(item.asset_code)}"></label><label>Serial number<input name="serialNumber" value="${esc(item.serial_number)}"></label><label>Status<select name="status"><option>available</option><option>requested</option><option>pickup_pending</option><option>picked_up</option><option>overdue</option><option>damaged</option><option>maintenance</option><option>retired</option><option>lost</option></select></label><label>Location<input name="location" value="${esc(item.location)}"></label><label class="editor-full">Description<textarea name="description">${esc(item.description)}</textarea></label><div class="editor-actions"><button type="button" class="outline" data-editor-close>Cancel</button><button class="primary" type="submit">Save changes</button></div></form></section>`;
+    document.body.appendChild(dialog); dialog.querySelector('[name="status"]').value = item.status || 'available'; dialog.querySelectorAll('[data-editor-close]').forEach(button => button.onclick = closeEditor); dialog.onclick = event => { if (event.target === dialog) closeEditor(); };
+    dialog.querySelector('form').onsubmit = async event => { event.preventDefault(); const form = new FormData(event.currentTarget); const payload = Object.fromEntries(form.entries()); try { const updated = await mlmApi.updateEquipment(item.id, payload); const index = equipment.findIndex(current => current.id === item.id); equipment[index] = { ...item, ...updated }; closeEditor(); render(document.querySelector('.admin-tabs .selected')?.dataset.filter || 'All'); } catch (error) { mlmUiError(error.message); } };
+    dialog.querySelector('[name="name"]').focus();
+  };
+  try { const result = await mlmApi.equipment({ limit: 1000 }); equipment = Array.isArray(result) ? result : (result.equipment || result.items || []); render('All'); document.querySelector('#equipmentSearch')?.addEventListener('input', () => render(document.querySelector('.admin-tabs .selected')?.dataset.filter || 'All')); document.querySelectorAll('.admin-tabs button').forEach(button => button.onclick = () => { document.querySelectorAll('.admin-tabs button').forEach(x => x.classList.remove('selected')); button.classList.add('selected'); render(button.dataset.filter || button.textContent.trim()); }); } catch (error) { rows.innerHTML = `<tr><td colspan="7">${esc(error.message)}</td></tr>`; }
 });
