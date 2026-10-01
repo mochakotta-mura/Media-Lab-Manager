@@ -30,6 +30,12 @@ class RequestService:
     def request_extension(self, data):
         return self.db.request_extension(data)
 
+    def assign_pickup_slot(self, data):
+        return self.db.assign_pickup_slot(data)
+
+    def respond_pickup_slot(self, data):
+        return self.db.respond_pickup_slot(data)
+
     def pickup(self, data):
         return self.db.record_pickup(data)
 

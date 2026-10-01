@@ -6,7 +6,7 @@ The integration is contained in `MLM.integration` and serves the maintained fron
 
 ## Backend service layout
 
-`server.py` remains the HTTP entry point and route dispatcher. Component-level application logic is grouped under `server/services/`:
+`server.py` remains the HTTP entry point and route dispatcher. Component-level application logic is grouped under `server/services/`. These modules are active runtime dependencies imported by `server.py`, not optional examples:
 
 - `authentication_service.py` handles PIN login, sessions, and role checks.
 - `equipment_service.py` handles catalog, inventory, equipment status, and damage-report reads.
@@ -14,6 +14,24 @@ The integration is contained in `MLM.integration` and serves the maintained fron
 - `notification_service.py` handles dashboard, audit, and outbox-event access. A separate email/SMS worker can consume the outbox later.
 
 `MLM.Database/mlm_database_commands.py` remains the persistence layer. The services call the database facade, while the HTTP routes remain responsible for request parsing, authorization gates, and response formatting.
+
+## Redundant and legacy files
+
+The following files are not part of the live integration path:
+
+- `Media Lab Front/js/extension-admin.js` is a legacy local-storage extension prototype. Live extension review uses `server.py`, `request_service.py`, and `Media Lab Front/js/admin-refresh.js`; do not use the prototype because it does not save decisions to SQLite.
+- `MLM.integration/server/__pycache__/` and other `__pycache__/` directories are generated Python bytecode, not source files. They can be ignored or removed safely when cleaning a working copy.
+- `Media Lab Front/dev-backend/` was the removed Node mock backend. It is not required and must not be used to run the application.
+
+The active path is:
+
+```text
+Media Lab Front/js/api.js
+        -> MLM.integration/server/server.py
+        -> MLM.integration/server/services/
+        -> MLM.Database/mlm_database_commands.py
+        -> media-lab.sqlite
+```
 
 ## Requirements
 
@@ -82,7 +100,7 @@ The server implements the operations exposed by `Media Lab Front/js/api.js`:
 - Users: staff user listing and administrator-only user creation (new users default to student).
 - Equipment: catalog search, statistics, creation, and updates.
 - Settings: administrator-only settings read and update.
-- Requests: create, list, approve, reject, cancel, schedule windows, extensions, pickup, return submission, return verification, and legacy staff return processing.
+- Requests: create, list, approve, reject, cancel, administrator-assigned pickup slots, student pickup-slot responses, extensions, pickup, return submission, return verification, and legacy staff return processing.
 - Damage: create damage reports for request items.
 - Administration: dashboard, audit history, and outbox events.
 
@@ -92,6 +110,7 @@ All protected API calls require the session cookie. Mutating requests also requi
 
 - Students can browse equipment, create requests, view their own requests, cancel owned requests, and submit owned returns.
 - Faculty and Media Lab users can review requests, approve or reject them, manage pickup and return workflows, report damage, and access staff API data. The entire admin console, including equipment, requests, reports, settings, and user creation, is administrator-only.
+- After approval, administrators assign a pickup slot through `POST /api/requests/{id}/pickup-slot`. The slot must start between 24 hours and 20 minutes before the student's requested pickup time and must end by that requested time. The requester responds through `POST /api/requests/{id}/pickup-response` with `accepted` or `rejected`.
 - Requester and actor IDs supplied by the browser are ignored; the authenticated session determines the acting user.
 
 ## Data and validation
@@ -118,11 +137,12 @@ The server supports the live-data paths used by the maintained frontend:
 1. A user signs in through `index.html`.
 2. The catalog loads equipment from `/api/equipment`.
 3. The booking page submits equipment and ISO-8601 time windows.
-4. Staff review pending requests and approve or reject them.
-5. Staff confirm pickup; the requester or staff records the return.
-6. Student return submissions remain pending until staff verification.
-7. Staff verify returns as `verified_returned`, `verified_damaged`, `missing_items`, or `disputed_return`.
-8. History, dashboard, audit, and outbox data are loaded through the API.
+4. Administrators approve requests and enter a pickup slot within the permitted time range.
+5. The request becomes `pickup_pending`; the student accepts or rejects the slot from the profile page.
+6. Staff confirm pickup; the requester or staff records the return.
+7. Student return submissions remain pending until staff verification.
+8. Staff verify returns as `verified_returned`, `verified_damaged`, `missing_items`, or `disputed_return`.
+9. History, dashboard, audit, and outbox data are loaded through the API.
 
 Frontend-provided requester and actor IDs are not trusted; the authenticated session determines the acting user.
 

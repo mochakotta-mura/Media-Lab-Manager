@@ -18,7 +18,7 @@ import re
 import secrets
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
@@ -245,6 +245,27 @@ def iso_date(value: str, field: str) -> datetime:
     if parsed.tzinfo is None:
         raise ApiError(f"{field} must include a timezone")
     return parsed
+
+
+def validate_pickup_slot(request_id: int, starts_at: str, ends_at: str):
+    """Validate an administrator slot against the student's requested pickup."""
+    starts = iso_date(starts_at, "startsAt")
+    ends = iso_date(ends_at, "endsAt")
+    if ends <= starts:
+        raise ApiError("endsAt must be after startsAt")
+    requested = db.connection.execute(
+        "SELECT starts_at FROM time_windows WHERE request_id=? AND kind='pickup' AND status='requested' ORDER BY id LIMIT 1",
+        (request_id,),
+    ).fetchone()
+    if requested is None:
+        raise ApiError("Original pickup slot not found", 409)
+    requested_start = iso_date(requested["starts_at"], "requested pickup start")
+    earliest = requested_start - timedelta(hours=24)
+    latest = requested_start - timedelta(minutes=20)
+    if starts < earliest or starts > latest:
+        raise ApiError("Pickup slot must start between 24 hours and 20 minutes before the requested pickup time")
+    if ends > requested_start:
+        raise ApiError("Pickup slot must end by the requested pickup time")
 
 
 def request_view(request_id: int):
@@ -620,6 +641,23 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self.require_staff()
                 verification = {**data, "requestId": request_id, "verifiedBy": user["id"]}
                 return self.send_json(200, verify_return_submission(verification))
+            if action == "pickup-slot":
+                if method != "POST":
+                    raise ApiError("Method not allowed", 405)
+                self.require_staff()
+                validate_pickup_slot(request_id, data.get("startsAt"), data.get("endsAt"))
+                body = {**data, "requestId": request_id, "actorId": user["id"]}
+                return self.send_json(201, request_service.assign_pickup_slot(body))
+            if action == "pickup-response":
+                if method != "POST":
+                    raise ApiError("Method not allowed", 405)
+                if request["requester_id"] != user["id"]:
+                    raise ApiError("You do not own this request", 403)
+                status = data.get("status")
+                if status not in {"accepted", "rejected"}:
+                    raise ApiError("status must be accepted or rejected")
+                body = {**data, "requestId": request_id, "actorId": user["id"]}
+                return self.send_json(200, request_service.respond_pickup_slot(body))
             if action == "cancel":
                 if request["requester_id"] != user["id"] and not staff_access:
                     raise ApiError("You do not own this request", 403)

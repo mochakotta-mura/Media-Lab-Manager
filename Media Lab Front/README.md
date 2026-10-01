@@ -21,7 +21,7 @@ Do not open the HTML files through the removed `dev-backend` server or configure
 ## Frontend structure
 
 - `index.html` — account login page.
-- `pages/` — catalog, bookings, history, notifications, return, pickup-pass, and admin pages.
+- `pages/` — catalog, bookings, history, notifications, return, profile, and admin pages.
 - `js/api.js` — shared API adapter. It defaults to `/api` and sends the HttpOnly session cookie automatically; mutating calls also send the CSRF header.
 - `js/` — authentication, catalog, booking, history, return, notification, and admin behavior.
 - `css/` — shared and page-specific stylesheets.
@@ -37,6 +37,7 @@ The frontend calls the Python server through the API methods in `js/api.js`, inc
 - Catalog listing images are read from the database `images` JSON field and displayed on equipment cards when a valid HTTP(S) image URL is present.
 - The booking cart is cleared when login changes accounts or logout succeeds; it is not shared between users.
 - Approval, rejection, cancellation, pickup, return, extensions, and damage reporting.
+- Administrator pickup-slot assignment and student acceptance or rejection from `profile.html`.
 - Dashboard, audit, and outbox data.
 - The admin equipment page displays one color-coded status tag per status with its quantity. Clicking a tag edits only that group of physical units; quantity changes update existing units and preserve their serial numbers. “Remove tag” returns those units to `available`.
 
@@ -54,4 +55,6 @@ For API details, configuration, permissions, validation, limitations, and test c
 
 ## Development note
 
-The frontend currently uses live API data for the core catalog, booking, request, return, and administration flows. Some notification, pickup-pass, settings, and lender-calendar views remain presentation/demo functionality until their corresponding backend services are implemented.
+The frontend currently uses live API data for the core catalog, booking, request, pickup-slot, return, and administration flows. Students review and accept or reject administrator-assigned pickup slots from their profile; the former pickup-pass flow is removed.
+
+Pickup slots are assigned through the admin request console. The administrator enters an ISO-8601 start and end time; the server enforces the 24-hour-to-20-minute start window before the student's requested pickup. Students can accept the slot or reject it and are instructed to email `demo.admin` to arrange another time.

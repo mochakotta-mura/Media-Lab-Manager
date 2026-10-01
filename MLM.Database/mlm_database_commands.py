@@ -416,7 +416,7 @@ class Database:
                 (status, details.get("reason", request["rejection_reason"]), details.get("notes", request["approval_notes"]), _now(), request_id),
             )
             self.connection.execute("UPDATE request_items SET status=? WHERE request_id=?", (status, request_id))
-            if status == "approved":
+            if status in ("approved", "pickup_pending"):
                 self.connection.execute("UPDATE equipment SET status='pickup_pending',updated_at=? WHERE id IN (SELECT equipment_id FROM request_items WHERE request_id=?)", (_now(), request_id))
             elif status in ("rejected", "cancelled"):
                 self.connection.execute("UPDATE equipment SET status='available',updated_at=? WHERE id IN (SELECT equipment_id FROM request_items WHERE request_id=?)", (_now(), request_id))
@@ -424,7 +424,7 @@ class Database:
             self._emit(f"request.{status}", "request", request_id, details)
         return self._request_view(request_id)
 
-    def approve_request(self, request_id, actor_id, notes=""): return self.set_request_status(request_id, "approved", actor_id, {"notes": notes})
+    def approve_request(self, request_id, actor_id, notes=""): return self.set_request_status(request_id, "pickup_pending", actor_id, {"notes": notes})
     def reject_request(self, request_id, actor_id, reason=""): return self.set_request_status(request_id, "rejected", actor_id, {"reason": reason})
     def cancel_request(self, request_id, actor_id): return self.set_request_status(request_id, "cancelled", actor_id)
 
@@ -440,6 +440,60 @@ class Database:
 
     def request_extension(self, data):
         return self.schedule_window({**data, "kind": "extension", "status": "requested"})
+
+    def assign_pickup_slot(self, data):
+        """Store the administrator's pickup slot against an approved request."""
+        request_id = data["requestId"]
+        with self._transaction():
+            request = self.connection.execute("SELECT * FROM requests WHERE id=?", (request_id,)).fetchone()
+            if request is None:
+                raise ValueError("request not found")
+            requested = self.connection.execute(
+                "SELECT * FROM time_windows WHERE request_id=? AND kind='pickup' AND status='requested' ORDER BY id LIMIT 1",
+                (request_id,),
+            ).fetchone()
+            if requested is None:
+                raise ValueError("original pickup slot not found")
+            assigned = self.connection.execute(
+                "SELECT * FROM time_windows WHERE request_id=? AND kind='pickup' AND status IN ('approved','accepted','rejected') ORDER BY id DESC LIMIT 1",
+                (request_id,),
+            ).fetchone()
+            if assigned:
+                self.connection.execute(
+                    "UPDATE time_windows SET starts_at=?,ends_at=?,status='approved',notes=? WHERE id=?",
+                    (data["startsAt"], data["endsAt"], data.get("notes", ""), assigned["id"]),
+                )
+                window_id = assigned["id"]
+            else:
+                cursor = self.connection.execute(
+                    "INSERT INTO time_windows(request_id,kind,starts_at,ends_at,status,notes) VALUES (?,?,?,?,?,?)",
+                    (request_id, "pickup", data["startsAt"], data["endsAt"], "approved", data.get("notes", "")),
+                )
+                window_id = cursor.lastrowid
+            self._audit(data.get("actorId"), "request", request_id, "pickup_slot_assigned", data)
+            self._emit("pickup.slot_assigned", "request", request_id, {**data, "windowId": window_id})
+        return self._request_view(request_id)
+
+    def respond_pickup_slot(self, data):
+        """Record the requester's acceptance or rejection of an assigned slot."""
+        status = data["status"]
+        if status not in {"accepted", "rejected"}:
+            raise ValueError("pickup slot status must be accepted or rejected")
+        request_id = data["requestId"]
+        with self._transaction():
+            window = self.connection.execute(
+                "SELECT * FROM time_windows WHERE request_id=? AND kind='pickup' AND status='approved' ORDER BY id DESC LIMIT 1",
+                (request_id,),
+            ).fetchone()
+            if window is None:
+                raise ValueError("no administrator pickup slot is awaiting a response")
+            self.connection.execute(
+                "UPDATE time_windows SET status=?,notes=? WHERE id=?",
+                (status, data.get("notes", ""), window["id"]),
+            )
+            self._audit(data.get("actorId"), "request", request_id, f"pickup_slot_{status}", data)
+            self._emit(f"pickup.slot_{status}", "request", request_id, {**data, "windowId": window["id"]})
+        return self._request_view(request_id)
 
     def record_pickup(self, data):
         with self._transaction():

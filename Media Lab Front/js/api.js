@@ -47,6 +47,8 @@
     createRequest: body => json('POST', '/requests', body),
     requests: (query = '') => call('/requests' + query),
     approveRequest: (id, _actorId, notes) => json('POST', `/requests/${id}/approve`, { notes }),
+    assignPickupSlot: body => json('POST', `/requests/${body.requestId}/pickup-slot`, body),
+    respondPickupSlot: (id, status, notes = '') => json('POST', `/requests/${id}/pickup-response`, { status, notes }),
     rejectRequest: (id, _actorId, reason) => json('POST', `/requests/${id}/reject`, { reason }),
     cancelRequest: (id, _actorId) => json('POST', `/requests/${id}/cancel`, {}),
     scheduleWindow: body => json('POST', `/requests/${body.requestId}/windows`, body),

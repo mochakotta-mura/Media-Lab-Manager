@@ -54,7 +54,9 @@ Main operations include:
 - Lending: record_pickup, mark_no_show, record_return, record_damage
 - Backend support: get_dashboard, get_audit_history, get_outbox, mark_events_published
 
-Request data normally moves through pending, approved, pickup_pending, picked_up, and returned. Rejection or cancellation releases equipment. A damaged return marks only the affected equipment unit as damaged.
+Request data normally moves through pending, pickup_pending, picked_up, and returned. After staff approval, the requester receives an administrator-assigned pickup slot and can accept or reject it. Rejection or cancellation releases equipment. A damaged return marks only the affected equipment unit as damaged.
+
+Pickup-slot decisions are stored as `time_windows` records and produce audit/outbox events. The integration server exposes `POST /api/requests/{id}/pickup-slot` for administrator assignment and `POST /api/requests/{id}/pickup-response` for requester acceptance or rejection.
 
 For detailed table definitions and relationships, see [schema/README.md](schema/README.md).
 
