@@ -19,7 +19,7 @@ profileApiReady.then(() => window.mlmSessionReady).then(() => mlmSession.require
     document.querySelector('#profileName').textContent = selected.name || selected.email;
     document.querySelector('#profileEmail').textContent = selected.email || '';
     document.querySelector('#profileRole').textContent = `Role: ${selected.role || 'student'}`;
-    document.querySelector('#bookingTitle').textContent = `${selected.name || selected.email} — past bookings`;
+    document.querySelector('#bookingTitle').textContent = `${selected.name || selected.email} — Bookings`;
     const result = await mlmApi.requests(`?requesterId=${encodeURIComponent(selected.id)}`); const requests = Array.isArray(result) ? result : (result.requests || []);
     const rows = document.querySelector('#profileBookings');
     rows.innerHTML = requests.map(request => `<tr><td><b>${request.id}</b></td><td>${esc((request.items || []).map(item => item.name || item.equipment_id).join(', '))}</td><td>${format(request.windows?.find(window => window.kind === 'pickup')?.starts_at)}</td><td>${format(request.windows?.find(window => window.kind === 'return')?.ends_at)}</td><td><span class="status ${esc(request.status)}">${esc(request.status)}</span></td><td><a href="return.html?request=${request.id}&from=profile">Return &amp; Damage</a></td></tr>`).join('') || '<tr><td colspan="6">No bookings found.</td></tr>';
