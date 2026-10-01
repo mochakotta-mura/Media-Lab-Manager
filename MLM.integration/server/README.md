@@ -4,6 +4,17 @@
 
 The integration is contained in `MLM.integration` and serves the maintained frontend from `Media Lab Front`. The former `Media Lab Front/dev-backend` Node development server has been removed.
 
+## Backend service layout
+
+`server.py` remains the HTTP entry point and route dispatcher. Component-level application logic is grouped under `server/services/`:
+
+- `authentication_service.py` handles PIN login, sessions, and role checks.
+- `equipment_service.py` handles catalog, inventory, equipment status, and damage-report reads.
+- `request_service.py` handles booking, approval, extension, pickup, return, and damage operations.
+- `notification_service.py` handles dashboard, audit, and outbox-event access. A separate email/SMS worker can consume the outbox later.
+
+`MLM.Database/mlm_database_commands.py` remains the persistence layer. The services call the database facade, while the HTTP routes remain responsible for request parsing, authorization gates, and response formatting.
+
 ## Requirements
 
 - Python 3.10 or newer

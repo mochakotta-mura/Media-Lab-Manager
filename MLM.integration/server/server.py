@@ -25,6 +25,10 @@ from urllib.parse import parse_qs, unquote, urlparse
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "MLM.Database"))
 from mlm_database_commands import Database  # noqa: E402
+from services.authentication_service import AuthenticationService  # noqa: E402
+from services.equipment_service import EquipmentService  # noqa: E402
+from services.notification_service import NotificationService  # noqa: E402
+from services.request_service import RequestService  # noqa: E402
 
 FRONTEND = ROOT / "Media Lab Front"
 HOST = os.environ.get("HOST", "127.0.0.1")
@@ -394,6 +398,15 @@ def ensure_available(equipment_ids, starts_at: str, ends_at: str):
         raise ApiError("equipment unavailable: " + ",".join(str(row["equipment_id"]) for row in rows), 409)
 
 
+equipment_service = EquipmentService(db)
+notification_service = NotificationService(db)
+request_service = RequestService(db, request_list, ensure_available)
+authentication_service = AuthenticationService(
+    db, ApiError, SESSION_COOKIE, COOKIE_SECURE, SESSION_SECONDS,
+    STAFF_ROLES, ADMIN_EMAILS, ROLE_BY_EMAIL_DOMAIN, STAFF_EMAIL_DOMAINS,
+)
+
+
 class Handler(http.server.BaseHTTPRequestHandler):
     server_version = "MediaLabManager/1.0"
 
@@ -433,26 +446,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     def current_user(self):
         """Resolve and refresh the current database-backed session."""
-        auth = self.headers.get("Authorization", "")
-        # Bearer auth is intentionally not accepted. Sessions are cookie-only.
-        if auth:
-            return None
-        token = self.cookies().get(SESSION_COOKIE)
-        if not token:
-            return None
-        row = db.connection.execute(
-            "SELECT u.*,s.id AS session_id,s.expires_at AS session_expires_at FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=?",
-            (token_hash(token),),
-        ).fetchone()
-        if not row or float(row["session_expires_at"]) < now_epoch() or row["banned"]:
-            if row:
-                db.connection.execute("DELETE FROM sessions WHERE id=?", (row["session_id"],))
-                db.connection.commit()
-            return None
-        expires = now_epoch() + SESSION_SECONDS
-        db.connection.execute("UPDATE sessions SET expires_at=?,last_seen_at=? WHERE id=?", (expires, now_epoch(), row["session_id"]))
-        db.connection.commit()
-        return public_user(dict(row))
+        return authentication_service.current_user(self)
 
     def require_user(self):
         """Require an authenticated user for the current request."""
@@ -464,14 +458,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def require_staff(self):
         """Require an authenticated staff user."""
         user = self.require_user()
-        if not is_staff(user):
+        if not authentication_service.is_staff(user):
             raise ApiError("Staff access is required", 403)
         return user
 
     def require_admin(self):
         """Require an authenticated administrator."""
         user = self.require_user()
-        if not is_admin(user):
+        if not authentication_service.is_admin(user):
             raise ApiError("Administrator access is required", 403)
         return user
 
@@ -538,7 +532,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def route(self, method, path, data):
         """Dispatch an API request to authentication or workflow logic."""
         if method == "POST" and path == "/api/auth/login":
-            return self.login(data)
+            return authentication_service.login(self, data, check_login_allowed, record_failed_login, clear_failed_logins)
         if method == "POST" and path == "/api/auth/logout":
             if self.headers.get("X-MLM-CSRF") != "1":
                 raise ApiError("CSRF check failed", 403)
@@ -556,26 +550,26 @@ class Handler(http.server.BaseHTTPRequestHandler):
         user = self.require_user()
         if method == "GET" and path == "/api/equipment":
             filters = {key: values[0] for key, values in data.items()}
-            return self.send_json(200, db.find(filters))
+            return self.send_json(200, equipment_service.list_units(filters))
         if method == "GET" and path == "/api/listings":
             filters = {key: values[0] for key, values in data.items()}
-            return self.send_json(200, db.get_listings(filters))
+            return self.send_json(200, equipment_service.list_catalog(filters))
         if method == "GET" and path == "/api/policy":
             settings = db.get_settings()
             return self.send_json(200, {"standardLoanHours": settings.get("standardLoanHours", settings.get("standard_loan_hours", 72))})
         if method == "GET" and path == "/api/equipment/stats":
             self.require_staff()
-            return self.send_json(200, db.stats())
+            return self.send_json(200, equipment_service.stats())
         if method == "GET" and path == "/api/damage-reports":
             self.require_staff()
             filters = {key: values[0] for key, values in data.items()}
-            return self.send_json(200, db.list_damage_reports(filters))
+            return self.send_json(200, equipment_service.list_damage_reports(filters))
         if method == "POST" and path == "/api/equipment":
             self.require_staff()
-            return self.send_json(201, db.add_equipment(data))
+            return self.send_json(201, equipment_service.add_unit(data))
         if method in {"PATCH", "PUT"} and len(path.split("/")) == 4 and path.split("/")[2] == "equipment":
             self.require_staff()
-            return self.send_json(200, db.update_equipment(int(path.split("/")[3]), data, user["id"]))
+            return self.send_json(200, equipment_service.update_unit(int(path.split("/")[3]), data, user["id"]))
         if method == "GET" and path == "/api/settings":
             self.require_admin()
             return self.send_json(200, db.get_settings())
@@ -596,8 +590,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 end_date = iso_date(body.get(end), end)
                 if end_date <= start_date:
                     raise ApiError(f"{end} must be after {start}")
-            ensure_available(body.get("equipmentIds", body.get("items", [])), body["pickupStartsAt"], body["returnEndsAt"])
-            return self.send_json(201, db.create_request(body))
+            return self.send_json(201, request_service.create(body))
         if method == "GET" and path == "/api/requests":
             filters = {key: values[0] for key, values in data.items()}
             staff_access = is_staff(user)
@@ -605,7 +598,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 filters["requesterId"] = str(user["id"])
             elif filters.get("requesterId"):
                 filters["requesterId"] = str(int(filters["requesterId"]))
-            return self.send_json(200, request_list(filters))
+            return self.send_json(200, request_service.list(filters))
 
         parts = [unquote(part) for part in path.split("/") if part]
         if len(parts) >= 4 and parts[1] == "requests":
@@ -630,20 +623,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if action == "cancel":
                 if request["requester_id"] != user["id"] and not staff_access:
                     raise ApiError("You do not own this request", 403)
-                return self.send_json(200, db.cancel_request(request_id, user["id"]))
+                return self.send_json(200, request_service.cancel(request_id, user["id"]))
             if action in {"approve", "reject", "windows", "pickup"} and not staff_access:
                 raise ApiError("Staff access is required", 403)
             if action == "approve":
-                return self.send_json(200, db.approve_request(request_id, user["id"], data.get("notes", "")))
+                return self.send_json(200, request_service.approve(request_id, user["id"], data.get("notes", "")))
             if action == "reject":
-                return self.send_json(200, db.reject_request(request_id, user["id"], data.get("reason", "")))
+                return self.send_json(200, request_service.reject(request_id, user["id"], data.get("reason", "")))
             if action == "windows":
                 starts_at = iso_date(data.get("startsAt"), "startsAt")
                 ends_at = iso_date(data.get("endsAt"), "endsAt")
                 if ends_at <= starts_at:
                     raise ApiError("endsAt must be after startsAt")
                 body = {**data, "requestId": request_id, "actorId": user["id"]}
-                return self.send_json(201, db.schedule_window(body))
+                return self.send_json(201, request_service.schedule_window(body))
             if action == "extensions":
                 if request["requester_id"] != user["id"] and not staff_access:
                     raise ApiError("You do not own this request", 403)
@@ -652,72 +645,37 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 if ends_at <= starts_at:
                     raise ApiError("endsAt must be after startsAt")
                 body = {**data, "requestId": request_id, "actorId": user["id"]}
-                return self.send_json(201, db.request_extension(body))
+                return self.send_json(201, request_service.request_extension(body))
             if action == "pickup":
                 body = {**data, "requestId": request_id, "actorId": user["id"]}
-                return self.send_json(200, db.record_pickup(body))
+                return self.send_json(200, request_service.pickup(body))
             if action == "return":
                 if request["requester_id"] != user["id"] and not staff_access:
                     raise ApiError("You do not own this request", 403)
                 if method == "POST" and not staff_access:
                     return self.send_json(202, create_return_submission(return_payload(data, request_id, user["id"])))
                 body = {**data, "requestId": request_id, "actorId": user["id"]}
-                return self.send_json(200, db.record_return(body))
+                return self.send_json(200, request_service.return_equipment(body))
         if len(parts) == 4 and parts[1] == "request-items" and parts[3] == "damage":
             self.require_staff()
             body = {**data, "requestItemId": int(parts[2]), "reportedBy": user["id"]}
             if not body.get("description"):
                 raise ApiError("description is required")
-            return self.send_json(201, db.record_damage(body))
+            return self.send_json(201, request_service.damage(body))
         if method == "GET" and len(parts) == 4 and parts[1] == "audit":
             self.require_staff()
-            return self.send_json(200, db.get_audit_history(parts[2], int(parts[3])))
+            return self.send_json(200, notification_service.audit_history(parts[2], int(parts[3])))
         if method == "GET" and path == "/api/dashboard":
             self.require_staff()
-            return self.send_json(200, db.get_dashboard())
+            return self.send_json(200, notification_service.dashboard())
         if method == "GET" and path == "/api/outbox":
             self.require_staff()
-            return self.send_json(200, db.get_outbox())
+            return self.send_json(200, notification_service.pending_events())
         raise ApiError("API route not found", 404)
 
     def login(self, data):
         """Validate credentials and create a database-backed session."""
-        email = str(data.get("email", "")).lower().strip()
-        pin = str(data.get("pin", ""))
-        assigned_role = role_for_email(email)
-        if not assigned_role or not re.match(r"^[^@\s]+@(?:krea\.ac\.in|krea\.edu\.in|krea\.medialab\.in)$", email):
-            raise ApiError("Use a valid @krea.ac.in, @krea.edu.in, or @krea.medialab.in email address")
-        if len(pin) != 4 or not pin.isdigit():
-            raise ApiError("PIN must be exactly 4 digits")
-        row = db.connection.execute("SELECT * FROM users WHERE email=? LIMIT 1", (email,)).fetchone()
-        user = dict(row) if row else None
-        if not user:
-            user = db.add_user({"kreaId": email, "name": email.split("@", 1)[0], "email": email, "role": assigned_role})
-            user["pin_hash"] = ""
-        elif user.get("role") not in STAFF_ROLES and user.get("role") != assigned_role:
-            db.connection.execute("UPDATE users SET role=?,updated_at=CURRENT_TIMESTAMP WHERE id=?", (assigned_role, user["id"]))
-            db.connection.commit()
-            user["role"] = assigned_role
-        check_login_allowed(self.client_address[0], email, user)
-        encoded = user.get("pin_hash") or ""
-        if encoded:
-            if not verify_pin(pin, encoded):
-                record_failed_login(self.client_address[0], email, user)
-                raise ApiError("Invalid email or PIN", 401)
-        else:
-            db.connection.execute("UPDATE users SET pin_hash=?,updated_at=CURRENT_TIMESTAMP WHERE id=?", (hash_pin(pin), user["id"]))
-            db.connection.commit()
-        if user.get("banned"):
-            raise ApiError("This account is banned")
-        clear_failed_logins(self.client_address[0], email, user)
-        safe = public_user(user)
-        token = secrets.token_hex(32)
-        db.connection.execute(
-            "INSERT INTO sessions(token_hash,user_id,expires_at,last_seen_at) VALUES (?,?,?,?)",
-            (token_hash(token), user["id"], now_epoch() + SESSION_SECONDS, now_epoch()),
-        )
-        db.connection.commit()
-        return self.send_json(200, {"user": safe}, {"Set-Cookie": cookie_header(token, SESSION_SECONDS)})
+        return authentication_service.login(self, data, check_login_allowed, record_failed_login, clear_failed_logins)
 
     def static_file(self, path):
         """Serve frontend files while protecting application pages."""
