@@ -17,7 +17,7 @@
   if (profileDetails) profileDetails.textContent = user.email || '';
   const adminPage = location.pathname.includes('/pages/admin/');
   const links = adminPage
-    ? [['../../pages/catalog.html', 'User View'], ['requests.html', 'Requests'], ['equipment.html', 'Equipments'], ['history.html', 'Report'], ['settings.html', 'Settings']]
+    ? [['../../pages/catalog.html', 'User View'], ['requests.html', 'Requests'], ['equipment.html', 'Equipments'], ['history.html', 'Damage Reports'], ['settings.html', 'Settings']]
     : [['catalog.html', 'Catalog'], ['bookings.html', 'Bookings & Cart'], ['history.html', 'My History'], ['notifications.html', 'Notifications'], ['profile.html', 'Profile']];
   nav.innerHTML = links.map(([href, label]) => `<a href="${href}">${label}</a>`).join('') + (!adminPage && administrator ? '<a class="admin-link" href="admin/equipment.html">Admin Console</a>' : '');
   const tools = document.querySelector('.header-tools');

@@ -566,6 +566,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if method == "GET" and path == "/api/equipment/stats":
             self.require_staff()
             return self.send_json(200, db.stats())
+        if method == "GET" and path == "/api/damage-reports":
+            self.require_staff()
+            filters = {key: values[0] for key, values in data.items()}
+            return self.send_json(200, db.list_damage_reports(filters))
         if method == "POST" and path == "/api/equipment":
             self.require_staff()
             return self.send_json(201, db.add_equipment(data))

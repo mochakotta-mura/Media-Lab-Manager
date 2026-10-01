@@ -43,6 +43,7 @@
     addEquipment: body => json('POST', '/equipment', body),
     updateEquipment: (id, body) => call(`/equipment/${id}`, { method: 'PATCH', body }),
     stats: () => call('/equipment/stats'),
+    damageReports: (query = '') => call('/damage-reports' + query),
     createRequest: body => json('POST', '/requests', body),
     requests: (query = '') => call('/requests' + query),
     approveRequest: (id, _actorId, notes) => json('POST', `/requests/${id}/approve`, { notes }),

@@ -459,6 +459,9 @@ class Database:
             for item_id in ids:
                 self.connection.execute("INSERT INTO returns(request_item_id,returned_at,returned_flag,condition,damage_flag,notes) VALUES (?,?,1,?,?,?) ON CONFLICT(request_item_id) DO UPDATE SET returned_at=excluded.returned_at,returned_flag=1,condition=excluded.condition,damage_flag=excluded.damage_flag,notes=excluded.notes", (item_id, data.get("returnedAt", _now()), data.get("condition", ""), int(bool(data.get("damageFlag"))), data.get("notes", "")))
                 self.connection.execute("UPDATE request_items SET status=? WHERE id=?", ("damaged" if data.get("damageFlag") else "returned", item_id))
+                if data.get("damageFlag"):
+                    description = data.get("notes") or data.get("condition") or "Damage reported during return"
+                    self.connection.execute("INSERT INTO damage_reports(request_item_id,reported_by,description,severity) VALUES (?,?,?,?)", (item_id, data.get("actorId"), description, "reported"))
             self.connection.execute("UPDATE requests SET status='returned',updated_at=? WHERE id=?", (_now(), data["requestId"]))
             self.connection.execute("UPDATE equipment SET status=?,updated_at=? WHERE id IN (SELECT equipment_id FROM request_items WHERE request_id=?)", ("damaged" if data.get("damageFlag") else "available", _now(), data["requestId"]))
             self._audit(data.get("actorId"), "request", data["requestId"], "return_recorded", data)
@@ -480,6 +483,38 @@ class Database:
             "windows": _rows(self.connection.execute("SELECT w.*,r.status,u.name AS requester_name FROM time_windows w JOIN requests r ON r.id=w.request_id JOIN users u ON u.id=r.requester_id ORDER BY w.starts_at")),
             "equipment": _rows(self.connection.execute("SELECT * FROM equipment ORDER BY name COLLATE NOCASE")),
         }
+
+    def list_damage_reports(self, filters=None):
+        filters = filters or {}
+        clauses = []
+        params = []
+        if filters.get("resolved") in {"0", "1"}:
+            clauses.append("dr.resolved=?")
+            params.append(int(filters["resolved"]))
+        if filters.get("severity"):
+            clauses.append("dr.severity=?")
+            params.append(filters["severity"])
+        if filters.get("q"):
+            query = f"%{filters['q']}%"
+            clauses.append("(CAST(dr.id AS TEXT) LIKE ? OR e.name LIKE ? OR e.asset_code LIKE ? OR u.name LIKE ? OR dr.description LIKE ?)")
+            params.extend([query] * 5)
+        where = " WHERE " + " AND ".join(clauses) if clauses else ""
+        return _rows(self.connection.execute(
+            "SELECT dr.*, ri.request_id, ri.status AS request_item_status, "
+            "e.id AS equipment_id, e.name AS equipment_name, e.asset_code, e.serial_number, "
+            "e.status AS equipment_status, e.location, l.id AS listing_id, l.name AS listing_name, "
+            "u.id AS requester_id, u.name AS requester_name, u.email AS requester_email, "
+            "reporter.name AS reporter_name, ret.condition AS return_condition, ret.notes AS return_notes "
+            "FROM damage_reports dr "
+            "JOIN request_items ri ON ri.id=dr.request_item_id "
+            "JOIN equipment e ON e.id=ri.equipment_id "
+            "LEFT JOIN listings l ON l.id=e.listing_id "
+            "JOIN requests r ON r.id=ri.request_id "
+            "JOIN users u ON u.id=r.requester_id "
+            "LEFT JOIN users reporter ON reporter.id=dr.reported_by "
+            "LEFT JOIN returns ret ON ret.request_item_id=ri.id" + where +
+            " ORDER BY dr.resolved ASC, dr.created_at DESC", params
+        ))
 
     def get_audit_history(self, entity_type, entity_id):
         return _rows(self.connection.execute("SELECT * FROM audit_log WHERE entity_type=? AND entity_id=? ORDER BY created_at DESC", (entity_type, entity_id)))
