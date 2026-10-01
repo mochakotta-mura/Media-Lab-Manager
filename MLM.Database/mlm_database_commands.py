@@ -280,10 +280,17 @@ class Database:
             for key in ("equipment_ids", "available_equipment_ids"):
                 item[key] = [int(value) for value in item[key].split(",") if value] if item[key] else []
             item["listing_id"] = item["id"]
+            item["status_counts"] = {
+                status_row["status"]: status_row["count"]
+                for status_row in self.connection.execute(
+                    "SELECT status, COUNT(*) AS count FROM equipment WHERE listing_id=? GROUP BY status",
+                    (item["listing_id"],),
+                ).fetchall()
+            }
             item["catalog_id"] = item["id"]
             item["id"] = item["available_equipment_ids"][0] if item["available_equipment_ids"] else item["listing_id"]
             item["total_quantity"] = item["quantity"] or item["equipment_quantity"]
-            item["status"] = "available" if item["available_quantity"] else "unavailable"
+            item["availability_status"] = "available" if item["available_quantity"] else "unavailable"
             result.append(item)
         return result
     def add_equipment(self, data: dict[str, Any]) -> dict[str, Any]:

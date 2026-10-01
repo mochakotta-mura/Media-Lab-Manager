@@ -65,7 +65,7 @@ The module returns Python data structures, not formatted text:
 - One record: a dict with database column names.
 - Collections: a list of record dictionaries.
 - Request results: a request dictionary containing items and windows lists.
-- get_listings: catalog dictionaries containing quantity and availability counts, unit ID lists, and an images list.
+- get_listings: catalog dictionaries containing quantity and availability counts, unit ID lists, an images list, and availability_status. The physical equipment status field is intentionally not replaced.
 - get_dashboard: a dictionary with pendingRequests, windows, and equipment lists.
 - get_outbox: event dictionaries containing event type, aggregate ID, payload, and publication timestamps.
 
