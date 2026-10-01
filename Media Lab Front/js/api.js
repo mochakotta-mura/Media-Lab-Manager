@@ -23,14 +23,16 @@
     return data;
   }
   const json = (method, path, body) => call(path, { method, body });
+  const clearClientCart = () => { try { localStorage.removeItem('mlmCart'); } catch {} };
   window.mlmApi = {
     base,
     login: body => json('POST', '/auth/login', { email: body.email, pin: body.pin }).then(data => {
+      clearClientCart();
       userCache = data.user || null;
       try { sessionStorage.setItem('mlmUser', JSON.stringify(userCache)); } catch {}
       return data;
     }),
-    logout: () => json('POST', '/auth/logout').finally(() => { userCache = null; try { sessionStorage.removeItem('mlmUser'); } catch {} }),
+    logout: () => json('POST', '/auth/logout').finally(() => { clearClientCart(); userCache = null; try { sessionStorage.removeItem('mlmUser'); } catch {} }),
     me: () => call('/auth/me').then(data => { userCache = data.user || null; try { sessionStorage.setItem('mlmUser', JSON.stringify(userCache)); } catch {} return data; }),
     currentUser: () => userCache,
     createUser: body => json('POST', '/users', body),

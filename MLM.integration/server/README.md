@@ -59,7 +59,7 @@ The login endpoint accepts:
 - Only `demo.admin@krea.edu.in`, `bing@krea.edu.in`, and addresses ending in `@krea.medialab.in` are administrators.
 - A four-digit PIN.
 
-The server sets an HttpOnly, SameSite=Strict session cookie. In production the cookie is also Secure; local HTTP development can explicitly set `COOKIE_SECURE=false`. Session records and scrypt PIN hashes are persisted in SQLite, and sessions expire after eight hours.
+The server sets an HttpOnly, SameSite=Strict session cookie. In production the cookie is also Secure; local HTTP development can explicitly set `COOKIE_SECURE=false`. Session records and scrypt PIN hashes are persisted in SQLite, and sessions expire after eight hours. Logout invalidates the server session and returns a client-state clear directive; the frontend removes the local booking cart so it cannot carry across accounts.
 
 This is the current development authentication flow. `@krea.ac.in` accounts default to `student`; ordinary `@krea.edu.in` accounts default to `faculty`; and `@krea.medialab.in` accounts default to `admin`. The only administrator identities are `demo.admin@krea.edu.in`, `bing@krea.edu.in`, and any address ending in `@krea.medialab.in`. Stored staff roles (`faculty`, `media_lab`, and `staff`) are preserved, while an `admin` role is only exposed for those administrator identities. Krea SSO is not implemented.
 

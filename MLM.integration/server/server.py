@@ -546,7 +546,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if token:
                 db.connection.execute("DELETE FROM sessions WHERE token_hash=?", (token_hash(token),))
                 db.connection.commit()
-            return self.send_json(200, {"ok": True}, {"Set-Cookie": cookie_header("", 0)})
+            return self.send_json(200, {"ok": True, "clearClientCart": True}, {"Set-Cookie": cookie_header("", 0)})
         if method == "GET" and path == "/api/auth/me":
             user = self.require_user()
             return self.send_json(200, {"user": user})

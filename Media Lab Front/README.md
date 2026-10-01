@@ -35,6 +35,7 @@ The frontend calls the Python server through the API methods in `js/api.js`, inc
 - Equipment search and statistics.
 - Booking creation and history.
 - Catalog listing images are read from the database `images` JSON field and displayed on equipment cards when a valid HTTP(S) image URL is present.
+- The booking cart is cleared when login changes accounts or logout succeeds; it is not shared between users.
 - Approval, rejection, cancellation, pickup, return, extensions, and damage reporting.
 - Dashboard, audit, and outbox data.
 
