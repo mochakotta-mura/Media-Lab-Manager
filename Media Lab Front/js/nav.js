@@ -16,9 +16,12 @@
   const profileDetails = document.querySelector('.student-profile p');
   if (profileDetails) profileDetails.textContent = user.email || '';
   const adminPage = location.pathname.includes('/pages/admin/');
+  // Administrators retain the user-facing navigation when browsing the catalog;
+  // identify its profile destination consistently as User History.
+  const adminUserHistory = administrator && !adminPage;
   const links = adminPage
     ? [['../../pages/catalog.html', 'User View'], ['requests.html', 'Requests'], ['equipment.html', 'Equipments'], ['history.html', 'Damage Reports'], ['settings.html', 'Settings']]
-    : [['catalog.html', 'Catalog'], ['bookings.html', 'Bookings & Cart'], ['history.html', 'My History'], ['notifications.html', 'Notifications'], ['profile.html', 'Profile']];
+    : [['catalog.html', 'Catalog'], ['bookings.html', 'Bookings & Cart'], ['history.html', 'My History'], ['notifications.html', 'Notifications'], ['profile.html', adminUserHistory ? 'User History' : 'Profile']];
   nav.innerHTML = links.map(([href, label]) => `<a href="${href}">${label}</a>`).join('') + (!adminPage && administrator ? '<a class="admin-link" href="admin/equipment.html">Admin Console</a>' : '');
   const tools = document.querySelector('.header-tools');
   if (tools && !tools.querySelector('[data-logout]')) { const logout = document.createElement('button'); logout.type = 'button'; logout.className = 'logout-button'; logout.dataset.logout = 'true'; logout.textContent = 'Log out'; logout.onclick = async () => { try { await window.mlmApi.logout(); } finally { location.href = '/'; } }; tools.appendChild(logout); }
