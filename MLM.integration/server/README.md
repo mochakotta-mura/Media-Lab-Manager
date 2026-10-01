@@ -96,7 +96,7 @@ All protected API calls require the session cookie. Mutating requests also requi
 
 ## Data and validation
 
-The server delegates persistence and workflow state changes to `mlm_database_commands.Database`. Equipment edits are committed to SQLite, create audit/outbox records, and are read back by the catalog aggregation, so a status such as `lost` survives refresh and removes that unit from available booking inventory.
+The server delegates persistence and workflow state changes to `mlm_database_commands.Database`. Equipment edits are committed to SQLite, create audit/outbox records, and are read back by the catalog aggregation, so a status such as `lost` survives refresh and removes that unit from available booking inventory. Status quantities represent existing physical units: bulk status edits send only a status change, preserving asset codes and serial numbers.
 
 At startup, the server also creates the `return_submissions` table used for student return submissions and staff verification when it is missing.
 

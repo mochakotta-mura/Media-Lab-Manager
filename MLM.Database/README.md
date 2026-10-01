@@ -33,9 +33,9 @@ The equipment table remains the authoritative inventory. Each physical unit has 
 
 For example, the catalog has one E27 LED Lightbulb listing with quantity 5, while the database has five separate E27 bulb equipment rows. If one bulb is damaged, only that unit becomes damaged and the listing reports four available units.
 
-Database.get_listings() returns catalog rows with total_quantity, available_quantity, checked_out_quantity, lost_quantity, damaged_quantity, equipment_ids, and available_equipment_ids. Individual equipment remains available through the existing equipment methods for staff-level inventory operations.
+Database.get_listings() returns catalog rows with total_quantity, available_quantity, checked_out_quantity, lost_quantity, damaged_quantity, status_counts, equipment_ids, and available_equipment_ids. Individual equipment remains available through the existing equipment methods for staff-level inventory operations.
 
-Equipment edits use `update_equipment()`, commit to SQLite, create an audit record and outbox event, and are immediately reflected by `get_listings()`. A unit marked `lost`, `damaged`, `maintenance`, or another non-available status remains unavailable after refresh and cannot be booked.
+Equipment edits use `update_equipment()`, commit to SQLite, create an audit record and outbox event, and are immediately reflected by `get_listings()`. The admin frontend edits status tags by changing the status of existing units, so serial numbers are preserved. Removing a tag returns its units to `available`; status quantities are never implemented by inserting duplicate units. A unit marked `lost`, `damaged`, `maintenance`, or another non-available status remains unavailable after refresh and cannot be booked.
 
 ## Python use
 
@@ -65,7 +65,7 @@ The module returns Python data structures, not formatted text:
 - One record: a dict with database column names.
 - Collections: a list of record dictionaries.
 - Request results: a request dictionary containing items and windows lists.
-- get_listings: catalog dictionaries containing quantity and availability counts, unit ID lists, an images list, and availability_status. The physical equipment status field is intentionally not replaced.
+- get_listings: catalog dictionaries containing quantity and availability counts, a status_counts mapping, unit ID lists, an images list, and availability_status. The physical equipment status field is intentionally not replaced.
 - get_dashboard: a dictionary with pendingRequests, windows, and equipment lists.
 - get_outbox: event dictionaries containing event type, aggregate ID, payload, and publication timestamps.
 

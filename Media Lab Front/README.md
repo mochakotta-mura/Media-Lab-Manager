@@ -38,6 +38,7 @@ The frontend calls the Python server through the API methods in `js/api.js`, inc
 - The booking cart is cleared when login changes accounts or logout succeeds; it is not shared between users.
 - Approval, rejection, cancellation, pickup, return, extensions, and damage reporting.
 - Dashboard, audit, and outbox data.
+- The admin equipment page displays one color-coded status tag per status with its quantity. Clicking a tag edits only that group of physical units; quantity changes update existing units and preserve their serial numbers. “Remove tag” returns those units to `available`.
 
 The server determines the authenticated requester or actor from the session; browser-supplied IDs are not authoritative.
 
