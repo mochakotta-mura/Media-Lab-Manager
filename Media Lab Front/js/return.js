@@ -13,6 +13,10 @@
     gear.innerHTML = `<h2>Confirm Equipment Being Returned</h2>${(request.items || []).map(item => `<div><span><b>${item.name || item.equipment_id}</b><small>${item.asset_code || ''} · Request #${request.id}</small></span></div>`).join('')}`;
     if (mlmSession.isStaff() && Number(request.requester_id) !== Number(mlmSession.currentUser()?.id)) document.querySelector('.verification').innerHTML = '<span><b>Staff processing mode</b><br>You are recording a return for another user.</span>';
     const form = document.querySelector('#returnForm');
+    form.querySelector('.form-actions .outline')?.addEventListener('click', () => {
+      const from = new URLSearchParams(location.search).get('from');
+      location.href = from === 'profile' ? 'profile.html' : 'history.html';
+    });
     form.onsubmit = async event => {
       event.preventDefault();
       const user = await mlmApi.me().then(data => data.user);
