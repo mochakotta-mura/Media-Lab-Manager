@@ -101,7 +101,7 @@ The server implements the operations exposed by `Media Lab Front/js/api.js`:
 - Equipment: catalog search, statistics, creation, and updates.
 - Settings: administrator-only settings read and update.
 - Requests: create, list, approve, reject, cancel, administrator-assigned pickup slots, student pickup-slot responses, extensions, pickup, return submission, return verification, and legacy staff return processing.
-- Damage: create damage reports for request items.
+- Damage: staff damage reports plus student return-submission damage aggregated into the protected admin report feed.
 - Administration: dashboard, audit history, and outbox events.
 
 All protected API calls require the session cookie. Mutating requests also require the `X-MLM-CSRF: 1` custom header; this is a defense-in-depth CSRF check alongside SameSite=Strict cookies.
@@ -112,6 +112,7 @@ All protected API calls require the session cookie. Mutating requests also requi
 - Faculty and Media Lab users can review requests, approve or reject them, manage pickup and return workflows, report damage, and access staff API data. The entire admin console, including equipment, requests, reports, settings, and user creation, is administrator-only.
 - After approval, administrators assign a pickup slot through `POST /api/requests/{id}/pickup-slot`. The slot must start between 24 hours and 20 minutes before the student's requested pickup time and must end by that requested time. The requester responds through `POST /api/requests/{id}/pickup-response` with `accepted` or `rejected`.
 - Requester and actor IDs supplied by the browser are ignored; the authenticated session determines the acting user.
+- Students submit return condition/damage through `POST /api/requests/{id}/return`. Staff and administrators read those reports through `GET /api/damage-reports`; students cannot call the staff-only item damage endpoint.
 
 ## Data and validation
 

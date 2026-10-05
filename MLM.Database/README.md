@@ -58,6 +58,8 @@ Request data normally moves through pending, pickup_pending, picked_up, and retu
 
 Pickup-slot decisions are stored as `time_windows` records and produce audit/outbox events. The integration server exposes `POST /api/requests/{id}/pickup-slot` for administrator assignment and `POST /api/requests/{id}/pickup-response` for requester acceptance or rejection.
 
+Student return submissions are stored in `return_submissions`. The integration server aggregates their damage descriptions into the protected admin damage-report response, while direct `damage_reports` writes remain staff-only.
+
 For detailed table definitions and relationships, see [schema/README.md](schema/README.md).
 
 ## Output format

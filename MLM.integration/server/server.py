@@ -292,6 +292,67 @@ def return_submission_view(request_id: int):
     return result
 
 
+def student_return_damage_reports(filters: dict | None = None):
+    """Expose damage described in student return submissions to staff reports."""
+    filters = filters or {}
+    rows = db.connection.execute(
+        """SELECT rs.*,r.id AS request_id,r.requester_id,u.name AS requester_name,u.email AS requester_email,
+                  ri.id AS request_item_id,e.id AS equipment_id,e.name AS equipment_name,e.asset_code,
+                  e.serial_number,e.status AS equipment_status,e.location
+           FROM return_submissions rs
+           JOIN requests r ON r.id=rs.request_id
+           JOIN users u ON u.id=r.requester_id
+           JOIN request_items ri ON ri.request_id=r.id
+           JOIN equipment e ON e.id=ri.equipment_id
+           WHERE rs.damage_description IS NOT NULL AND rs.damage_description <> ''
+           ORDER BY rs.submitted_at DESC"""
+    ).fetchall()
+    reports = []
+    for row in rows:
+        try:
+            entries = json.loads(row["damage_description"] or "[]")
+        except (TypeError, json.JSONDecodeError):
+            entries = [{"notes": row["damage_description"], "severity": "reported"}]
+        if not isinstance(entries, list):
+            entries = [entries]
+        for index, entry in enumerate(entries):
+            if not isinstance(entry, dict):
+                entry = {"notes": str(entry), "severity": "reported"}
+            severity = entry.get("severity") or "reported"
+            description = entry.get("notes") or entry.get("description") or "Damage noted in student return submission"
+            report = {
+                "id": f"submission-{row['request_id']}-{entry.get('requestItemId', row['request_item_id'])}-{index}",
+                "request_item_id": entry.get("requestItemId", row["request_item_id"]),
+                "request_id": row["request_id"],
+                "equipment_id": row["equipment_id"],
+                "equipment_name": entry.get("equipment") or row["equipment_name"],
+                "asset_code": row["asset_code"],
+                "serial_number": row["serial_number"],
+                "equipment_status": row["equipment_status"],
+                "location": row["location"],
+                "requester_id": row["requester_id"],
+                "requester_name": row["requester_name"],
+                "requester_email": row["requester_email"],
+                "severity": severity,
+                "description": description,
+                "resolved": row["verification_status"] in {"verified_returned", "verified_damaged", "missing_items"},
+                "created_at": row["submitted_at"],
+                "return_condition": entry.get("condition") or row["student_condition"],
+                "return_notes": entry.get("notes") or row["damage_description"],
+                "source": "student_return_submission",
+                "verification_status": row["verification_status"],
+            }
+            searchable = " ".join(str(report.get(key) or "") for key in ("id", "equipment_name", "asset_code", "requester_name", "description")).lower()
+            if filters.get("q") and str(filters["q"]).lower() not in searchable:
+                continue
+            if filters.get("severity") and severity != filters["severity"]:
+                continue
+            if filters.get("resolved") in {"0", "1"} and int(report["resolved"]) != int(filters["resolved"]):
+                continue
+            reports.append(report)
+    return reports
+
+
 def return_payload(data: dict, request_id: int, user_id: int):
     """Normalize return-submission fields and attach the authenticated user."""
     claimed = data.get("claimedReturnedAt") or data.get("returnedAt")
@@ -584,7 +645,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if method == "GET" and path == "/api/damage-reports":
             self.require_staff()
             filters = {key: values[0] for key, values in data.items()}
-            return self.send_json(200, equipment_service.list_damage_reports(filters))
+            reports = equipment_service.list_damage_reports(filters)
+            reports.extend(student_return_damage_reports(filters))
+            return self.send_json(200, reports)
         if method == "POST" and path == "/api/equipment":
             self.require_staff()
             return self.send_json(201, equipment_service.add_unit(data))

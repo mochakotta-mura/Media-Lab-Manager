@@ -38,6 +38,7 @@ The frontend calls the Python server through the API methods in `js/api.js`, inc
 - The booking cart is cleared when login changes accounts or logout succeeds; it is not shared between users.
 - Approval, rejection, cancellation, pickup, return, extensions, and damage reporting.
 - Administrator pickup-slot assignment and student acceptance or rejection from `profile.html`.
+- Admin damage reports include damage described by student return submissions; students continue using the return form rather than the staff-only damage API.
 - Dashboard, audit, and outbox data.
 - The admin equipment page displays one color-coded status tag per status with its quantity. Clicking a tag edits only that group of physical units; quantity changes update existing units and preserve their serial numbers. “Remove tag” returns those units to `available`.
 
